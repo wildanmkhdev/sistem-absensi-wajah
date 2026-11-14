@@ -33,8 +33,8 @@ export const PresensiPage: React.FC<PresensiPageProps> = ({
   );
   const [latitude, setLatitude] = useState<number>(defaultCoords.latitude);
   const [longitude, setLongitude] = useState<number>(defaultCoords.longitude);
-  const [lateMinutes, setLateMinutes] = useState<number>(5);
-  const [simulatedCase, setSimulatedCase] = useState<SimulatedCaseId>('M1');
+  const [lateMinutes, setLateMinutes] = useState<number>(0);
+  const [simulatedCase, setSimulatedCase] = useState<SimulatedCaseId>('CUSTOM');
   const [useRealGps, setUseRealGps] = useState<boolean>(false);
   const [isLocating, setIsLocating] = useState<boolean>(false);
 
@@ -141,6 +141,12 @@ export const PresensiPage: React.FC<PresensiPageProps> = ({
   };
 
   const handleSubmit = async () => {
+    // 1. Validasi: Wajah HARUS difoto terlebih dahulu
+    if (!capturedImage) {
+      setErrorMessage('Silakan ambil foto wajah Anda terlebih dahulu sebelum mengirim presensi.');
+      return;
+    }
+
     setIsSubmitting(true);
     setErrorMessage(null);
 
@@ -157,6 +163,18 @@ export const PresensiPage: React.FC<PresensiPageProps> = ({
         late_minutes: lateMinutes,
         simulated_case: simulatedCase,
       });
+
+      // 2. Jika wajah TIDAK DIKENAL atau skor kemiripan sangat rendah (< 0.70),
+      // langsung tolak di halaman utama dengan notifikasi jelas, JANGAN buka modal sukses/catat presensi!
+      if (res.name === 'Wajah Tidak Dikenal' || res.nim === 'UNKNOWN' || res.similarity_score < 0.70) {
+        setErrorMessage(
+          `⛔ PRESENSI DITOLAK: Wajah tidak cocok dengan data mahasiswa terdaftar (Kemiripan: ${Math.round(
+            res.similarity_score * 100
+          )}%). Pastikan Anda sudah mendaftar di menu Register.`
+        );
+        return;
+      }
+
       setResult(res);
       setIsSuccessModalOpen(true);
 
@@ -300,14 +318,33 @@ export const PresensiPage: React.FC<PresensiPageProps> = ({
           </div>
         </div>
 
-        {/* Quick Skenario Modul 13 Presets (Discreet & Tidy) */}
-        <div className="pt-2 border-t border-slate-100">
-          <div className="flex items-center justify-between mb-2">
+        {/* Mode & Skenario Selector */}
+        <div className="pt-2 border-t border-slate-100 space-y-2">
+          <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1">
               <Sparkles className="w-3 h-3 text-indigo-500" />
-              <span>Skenario Uji Modul 13:</span>
+              <span>Mode Pengujian:</span>
             </span>
-            <span className="text-[11px] text-slate-500 font-semibold">
+            <button
+              type="button"
+              onClick={() => {
+                setSimulatedCase('CUSTOM');
+                setSelectedNim('AUTO');
+                setErrorMessage(null);
+              }}
+              className={`text-[11px] font-extrabold px-2.5 py-1 rounded-lg border transition cursor-pointer ${
+                simulatedCase === 'CUSTOM'
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                  : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-emerald-50 hover:text-emerald-700'
+              }`}
+            >
+              📸 Mode Live Asli (Neon DB)
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-[10px] text-slate-400 font-semibold">Simulasi Modul 13:</span>
+            <span className="text-[10px] text-slate-500 font-bold">
               Aktif: <span className="text-indigo-600">{simulatedCase}</span>
             </span>
           </div>
@@ -330,11 +367,14 @@ export const PresensiPage: React.FC<PresensiPageProps> = ({
           </div>
         </div>
 
-        {/* Error Alert if any */}
+        {/* Error / Rejection Alert Banner */}
         {errorMessage && (
-          <div className="flex items-center space-x-2 text-xs text-rose-700 bg-rose-50 border border-rose-200 p-3 rounded-2xl">
-            <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
-            <span>{errorMessage}</span>
+          <div className="flex items-start space-x-3 text-xs text-rose-800 bg-rose-50 border-2 border-rose-300 p-4 rounded-2xl animate-fade-in shadow-xs">
+            <AlertCircle className="w-5 h-5 shrink-0 text-rose-600 mt-0.5" />
+            <div className="space-y-0.5">
+              <span className="font-extrabold uppercase text-[11px] text-rose-700 tracking-wider block">Verifikasi Gagal</span>
+              <p className="leading-relaxed">{errorMessage}</p>
+            </div>
           </div>
         )}
 
