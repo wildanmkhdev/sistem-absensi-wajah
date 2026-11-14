@@ -6,14 +6,12 @@ import { OversightPage } from './pages/OversightPage';
 import { BenchmarkPage } from './pages/BenchmarkPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { RegisterPage } from './pages/RegisterPage';
-import { UuPdpExplainer } from './components/UuPdpExplainer';
 import { fetchOversightAttendances } from './api';
 import { ShieldCheck } from 'lucide-react';
+
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('presensi');
   const [pendingOversightCount, setPendingOversightCount] = useState<number>(0);
-  const [isUuInfoOpen, setIsUuInfoOpen] = useState<boolean>(false);
-  const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>('desktop');
 
   const refreshOversightCount = async () => {
     try {
@@ -38,30 +36,25 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-800 flex flex-col font-sans selection:bg-orange-100 selection:text-orange-900">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-800 flex flex-col font-sans selection:bg-teal-100 selection:text-teal-900">
       {/* Top Navbar */}
       <Navbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         pendingOversightCount={pendingOversightCount}
-        onOpenUuInfo={() => setIsUuInfoOpen(true)}
-        viewMode={viewMode}
-        setViewMode={setViewMode}
       />
 
-      {/* Main Content Area Wrapped in Dual Version Mobile / Desktop Frame */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 flex flex-col justify-center">
+      {/* Main Content Area */}
+      <main className="flex-1 max-w-6xl w-full mx-auto px-3.5 sm:px-6 py-3.5 sm:py-6">
         <MobileFrame
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           pendingOversightCount={pendingOversightCount}
-          isMockupMode={viewMode === 'mobile'}
         >
           {activeTab === 'presensi' && (
             <PresensiPage
               onGoToOversight={() => setActiveTab('oversight')}
               onPresensiSuccess={refreshOversightCount}
-              isMobileLayout={viewMode === 'mobile'}
             />
           )}
 
@@ -86,34 +79,28 @@ export const App: React.FC = () => {
         </MobileFrame>
       </main>
 
-      {/* Footer (Hidden if inside mockup frame to keep mobile screen pristine) */}
-      {viewMode === 'desktop' && (
-        <footer className="bg-white border-t border-slate-100 py-6 text-xs text-slate-500 mt-12">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center space-x-2">
-              <div className="w-6 h-6 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center font-bold">
-                <ShieldCheck className="w-3.5 h-3.5" />
-              </div>
-              <span className="font-bold text-slate-700">
-                Sistem Presensi Kuliah Cerdas AI &amp; Human Oversight
-              </span>
-              <span className="text-slate-300">•</span>
-              <span className="text-slate-400">UU PDP No. 27/2022 Pasal 34 &amp; 35</span>
+      {/* Clean Desktop Footer */}
+      <footer className="hidden sm:block bg-white border-t border-slate-200/80 py-5 text-xs text-slate-500 mt-8">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <div className="w-5 h-5 rounded-md bg-teal-50 text-teal-700 flex items-center justify-center font-bold">
+              <ShieldCheck className="w-3.5 h-3.5" />
             </div>
-
-            <div className="flex items-center space-x-4 text-slate-400">
-              <span className="flex items-center space-x-1">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-                <span>Neon PostgreSQL Online</span>
-              </span>
-              <span>Kelompok 6 — Informatika</span>
-            </div>
+            <span className="font-bold text-slate-700">
+              Presensi Wajah Cerdas &amp; Human Oversight
+            </span>
+            <span className="text-slate-300">•</span>
+            <span className="text-slate-400">Modul 13 Kelompok 6</span>
           </div>
-        </footer>
-      )}
 
-      {/* Legal & Ethical Explainer Modal */}
-      {isUuInfoOpen && <UuPdpExplainer onClose={() => setIsUuInfoOpen(false)} />}
+          <div className="flex items-center space-x-4 text-slate-400">
+            <span className="flex items-center space-x-1">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+              <span>Neon PostgreSQL Terhubung</span>
+            </span>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };

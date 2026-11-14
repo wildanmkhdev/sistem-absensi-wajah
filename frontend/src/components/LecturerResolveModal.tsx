@@ -42,8 +42,8 @@ export const LecturerResolveModal: React.FC<LecturerResolveModalProps> = ({
         {/* Modal Header */}
         <div className="flex items-start justify-between">
           <div className="flex items-center space-x-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center font-bold">
-              <ShieldCheck className="w-5 h-5 text-orange-500" />
+            <div className="w-10 h-10 rounded-2xl bg-teal-50 text-teal-700 flex items-center justify-center font-bold">
+              <ShieldCheck className="w-5 h-5 text-teal-600" />
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-800">Verifikasi Dosen (Human Oversight)</h3>
@@ -66,7 +66,7 @@ export const LecturerResolveModal: React.FC<LecturerResolveModalProps> = ({
               <div className="text-xs text-slate-500 font-mono">NIM: {attendance.nim}</div>
             </div>
             {attendance.simulated_case && (
-              <span className="text-[10px] uppercase font-bold bg-orange-100 text-orange-700 px-2.5 py-0.5 rounded-full">
+              <span className="text-[10px] uppercase font-bold bg-teal-100 text-teal-800 px-2.5 py-0.5 rounded-full">
                 Kasus {attendance.simulated_case}
               </span>
             )}
@@ -75,7 +75,7 @@ export const LecturerResolveModal: React.FC<LecturerResolveModalProps> = ({
           <div className="grid grid-cols-3 gap-2 text-center text-xs pt-1">
             <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-xs">
               <span className="text-[10px] text-slate-400 block font-medium">Skor Wajah</span>
-              <span className="font-bold text-orange-600 font-mono">
+              <span className="font-bold text-teal-700 font-mono">
                 {(attendance.similarity_score * 100).toFixed(1)}%
               </span>
             </div>
@@ -107,7 +107,7 @@ export const LecturerResolveModal: React.FC<LecturerResolveModalProps> = ({
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="Tuliskan alasan pengesahan atau penolakan presensi..."
-            className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:bg-white transition"
+            className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-teal-600 focus:bg-white transition"
           />
         </div>
 

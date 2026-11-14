@@ -39,10 +39,10 @@ export const ResultCard: React.FC<ResultCardProps> = ({
     PERLU_VERIFIKASI_DOSEN: {
       title: 'PERLU VERIFIKASI DOSEN',
       subtitle: 'Memerlukan Human Oversight Sesuai UU PDP No. 27/2022 Pasal 34',
-      badgeClass: 'bg-orange-100 text-orange-800 border-orange-200',
-      borderClass: 'border-orange-200',
+      badgeClass: 'bg-amber-100 text-amber-800 border-amber-200',
+      borderClass: 'border-amber-200',
       icon: HelpCircle,
-      iconColor: 'text-orange-600',
+      iconColor: 'text-amber-600',
     },
     TIDAK_SAH: {
       title: 'PRESENSI TIDAK SAH',
@@ -222,7 +222,7 @@ export const ResultCard: React.FC<ResultCardProps> = ({
           <button
             type="button"
             onClick={onGoToOversight}
-            className="flex items-center justify-center space-x-1.5 text-xs font-black bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white px-5 py-2.5 rounded-xl shadow-md shadow-orange-500/20 transition cursor-pointer w-full sm:w-auto"
+            className="flex items-center justify-center space-x-1.5 text-xs font-bold bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white px-4 py-2.5 rounded-xl shadow-xs transition cursor-pointer w-full sm:w-auto"
           >
             <span>Tinjau di Review Dosen</span>
             <ArrowRight className="w-4 h-4" />

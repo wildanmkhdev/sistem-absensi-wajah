@@ -10,16 +10,15 @@ import { DEFAULT_CLASSROOM } from '../config';
 import { getCoordinatesAtDistance } from '../utils/geo';
 import type { PresensiResponse, SimulatedCaseId, Student, AttendanceRecord } from '../types';
 import { Send, AlertCircle, Sparkles, ChevronDown, History } from 'lucide-react';
+
 interface PresensiPageProps {
   onGoToOversight?: () => void;
   onPresensiSuccess?: () => void;
-  isMobileLayout?: boolean;
 }
 
 export const PresensiPage: React.FC<PresensiPageProps> = ({
   onGoToOversight,
   onPresensiSuccess,
-  isMobileLayout = false,
 }) => {
   const cameraSectionRef = useRef<HTMLDivElement | null>(null);
 
@@ -56,7 +55,6 @@ export const PresensiPage: React.FC<PresensiPageProps> = ({
     fetchStudents().then((data) => {
       setStudents(data);
       if (data.length > 0 && selectedNim === 'AUTO') {
-        // Default student for greeting
         setCustomName(data[0].name);
       }
     });
@@ -127,13 +125,13 @@ export const PresensiPage: React.FC<PresensiPageProps> = ({
 
   const handleScrollToCamera = () => {
     if (cameraSectionRef.current) {
-      cameraSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      cameraSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   };
 
   const handleSubmit = async () => {
     if (!capturedImage) {
-      setErrorMessage('Silakan ambil foto wajah Anda terlebih dahulu pada panel pemindai kamera.');
+      setErrorMessage('Silakan ambil foto wajah Anda terlebih dahulu pada panel kamera.');
       handleScrollToCamera();
       return;
     }
@@ -167,7 +165,6 @@ export const PresensiPage: React.FC<PresensiPageProps> = ({
       setResult(res);
       setIsSuccessModalOpen(true);
 
-      // Refresh list
       fetchAttendances().then((records) => setRecentAttendances(records.slice(0, 5))).catch(() => {});
       fetchOversightAttendances().then((pending) => setOversightCount(pending.length)).catch(() => {});
 
@@ -183,8 +180,8 @@ export const PresensiPage: React.FC<PresensiPageProps> = ({
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12">
-      {/* 1. Header Banner & Floating Check-In Card (Exact Dribbble Style) */}
+    <div className="space-y-4 sm:space-y-6 max-w-6xl mx-auto">
+      {/* 1. Top Header Card (Clean Solid Flat Teal, No Gradient, No Orange) */}
       <AttendanceHeaderCard
         student={currentStudent}
         onRekamPresensi={handleScrollToCamera}
@@ -192,43 +189,38 @@ export const PresensiPage: React.FC<PresensiPageProps> = ({
         isSubmitting={isSubmitting}
       />
 
-      {/* 2. Identity Mode Banner (Auto-Detect vs Manual Selector) */}
-      <div className="bg-white rounded-3xl p-4 sm:p-5 border border-orange-100/80 shadow-[0_4px_20px_rgba(0,0,0,0.03)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center space-x-3">
-          <div className="w-9 h-9 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center shrink-0">
-            <Sparkles className="w-5 h-5 text-orange-500 animate-pulse" />
+      {/* 2. Compact Mode Bar: Auto-Detect Indicator + Collapsible Manual Select */}
+      <div className="bg-white rounded-xl p-3 sm:p-3.5 border border-slate-200/80 shadow-xs flex items-center justify-between text-xs">
+        <div className="flex items-center space-x-2">
+          <div className="w-6 h-6 rounded-lg bg-teal-50 text-teal-700 flex items-center justify-center font-bold">
+            <Sparkles className="w-3.5 h-3.5" />
           </div>
           <div>
-            <div className="flex items-center space-x-2">
-              <span className="text-xs font-black text-slate-800">
-                {selectedNim === 'AUTO' ? 'Auto-Detect Wajah Mahasiswa Aktif' : `Mode Mahasiswa: ${customName || selectedNim}`}
-              </span>
-              <span className="text-[10px] font-bold bg-orange-100 text-orange-800 px-2 py-0.2 rounded-full font-mono">
-                1:N Biometric AI
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-400 font-medium">
-              Sistem mencocokkan vektor embedding biometrik secara otomatis terhadap database mahasiswa.
-            </p>
+            <span className="font-bold text-slate-800 text-[11px] sm:text-xs">
+              {selectedNim === 'AUTO' ? 'Auto-Detect Biometrik Aktif' : `Mode: ${customName || selectedNim}`}
+            </span>
+            <span className="text-[10px] text-slate-400 block">
+              Pencocokan 1:N Vektor Embedding Wajah
+            </span>
           </div>
         </div>
 
         <button
           type="button"
           onClick={() => setShowManualSelect(!showManualSelect)}
-          className="text-xs font-bold text-orange-600 hover:text-orange-700 bg-orange-50 hover:bg-orange-100 px-3.5 py-1.5 rounded-xl border border-orange-200/80 transition flex items-center space-x-1 self-start sm:self-auto cursor-pointer"
+          className="text-[11px] font-bold text-teal-700 hover:text-teal-800 bg-teal-50 hover:bg-teal-100 px-2.5 py-1 rounded-lg border border-teal-200/70 transition flex items-center space-x-1 cursor-pointer"
         >
-          <span>{showManualSelect ? 'Tutup Pilihan' : 'Pilih Mahasiswa Manual'}</span>
-          <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showManualSelect ? 'rotate-180' : ''}`} />
+          <span>{showManualSelect ? 'Tutup' : 'Pilih Manual'}</span>
+          <ChevronDown className={`w-3 h-3 transition-transform ${showManualSelect ? 'rotate-180' : ''}`} />
         </button>
       </div>
 
       {/* Collapsible Manual Selector */}
       {showManualSelect && (
-        <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-2 gap-3 animate-fade-in">
+        <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs grid grid-cols-1 sm:grid-cols-2 gap-2.5 animate-fade-in text-xs">
           <div>
-            <label className="text-[11px] font-bold text-slate-500 mb-1 block">
-              Pilih Identitas Terdaftar:
+            <label className="text-[11px] font-bold text-slate-600 mb-1 block">
+              Pilih Mahasiswa:
             </label>
             <select
               value={selectedNim}
@@ -237,9 +229,9 @@ export const PresensiPage: React.FC<PresensiPageProps> = ({
                 const found = students.find((s) => s.nim === e.target.value);
                 if (found) setCustomName(found.name);
               }}
-              className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+              className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-600"
             >
-              <option value="AUTO">-- Auto-Detect (Kenali Wajah Otomatis) --</option>
+              <option value="AUTO">-- Auto-Detect (Otomatis) --</option>
               {students.map((s) => (
                 <option key={s.nim} value={s.nim}>
                   {s.nim} - {s.name}
@@ -249,26 +241,25 @@ export const PresensiPage: React.FC<PresensiPageProps> = ({
           </div>
 
           <div>
-            <label className="text-[11px] font-bold text-slate-500 mb-1 block">
-              Nama Mahasiswa:
+            <label className="text-[11px] font-bold text-slate-600 mb-1 block">
+              Nama Lengkap:
             </label>
             <input
               type="text"
               value={customName || currentStudent?.name || ''}
               onChange={(e) => setCustomName(e.target.value)}
               placeholder="Nama Lengkap"
-              className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
-            >
-            </input>
+              className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-600"
+            />
           </div>
         </div>
       )}
 
-      {/* 3. Main Adaptive Grid Layout (Responsive Desktop vs Mobile) */}
-      <div className={`grid grid-cols-1 ${isMobileLayout ? 'gap-6' : 'lg:grid-cols-12 gap-6'}`}>
-        {/* Left Column (Desktop: 7 cols) or Top Area (Mobile) */}
-        <div className={`space-y-6 ${isMobileLayout ? '' : 'lg:col-span-7'}`}>
-          {/* Rekap Kehadiran (4 Category Cards from Dribbble) & Jadwal Kuliah */}
+      {/* 3. Main Responsive Grid: Structured, Tidy, No Visual Clutter */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
+        {/* Left Column (Desktop: 7 cols) */}
+        <div className="lg:col-span-7 space-y-4 sm:space-y-5">
+          {/* Rekap Kehadiran 4 Cards + Jadwal Kuliah */}
           <RekapKehadiranCards
             hadirCount={22}
             alfaCount={0}
@@ -279,18 +270,18 @@ export const PresensiPage: React.FC<PresensiPageProps> = ({
             }}
           />
 
-          {/* Sisa Durasi Kuliah - Radial Progress Gauge (Exact Dribbble Screen 4) */}
-          <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-[0_10px_30px_rgba(0,0,0,0.04)] space-y-2">
+          {/* Sisa Durasi Kuliah Gauge */}
+          <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-xs">
             <RadialProgressGauge
               hours={6}
               minutes={15}
               label="Sisa Durasi Kuliah Hari Ini"
-              sublabel="Sesi Kuliah Reguler: 08:00 - 15:00 WIB"
+              sublabel="Jadwal Reguler: 08:00 - 15:00 WIB"
               percentage={68}
             />
           </div>
 
-          {/* GPS Location & Map (Exact Dribbble Screen 2) */}
+          {/* GPS Map Card */}
           <GpsMapCard
             latitude={latitude}
             longitude={longitude}
@@ -303,9 +294,9 @@ export const PresensiPage: React.FC<PresensiPageProps> = ({
           />
         </div>
 
-        {/* Right Column (Desktop: 5 cols) or Bottom Area (Mobile) */}
-        <div className={`space-y-6 ${isMobileLayout ? '' : 'lg:col-span-5'}`} ref={cameraSectionRef}>
-          {/* Pemindai Wajah Selfie Camera (Exact Dribbble Screen 3) */}
+        {/* Right Column (Desktop: 5 cols) */}
+        <div className="lg:col-span-5 space-y-4" ref={cameraSectionRef}>
+          {/* Pemindai Wajah Selfie Camera */}
           <CameraCapture
             onCapture={(img) => setCapturedImage(img)}
             capturedImage={capturedImage}
@@ -315,12 +306,12 @@ export const PresensiPage: React.FC<PresensiPageProps> = ({
             onSelectCase={handleSelectCase}
           />
 
-          {/* Error / Rejection Banner */}
+          {/* Error Banner */}
           {errorMessage && (
-            <div className="bg-rose-50 border-2 border-rose-200 p-4 rounded-3xl text-rose-800 text-xs flex items-start space-x-3 shadow-sm animate-fade-in">
-              <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+            <div className="bg-rose-50 border border-rose-200 p-3 rounded-xl text-rose-800 text-xs flex items-start space-x-2 shadow-xs">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
               <div>
-                <span className="font-extrabold uppercase text-[11px] text-rose-700 tracking-wider block">
+                <span className="font-bold text-[11px] text-rose-700 block">
                   Verifikasi Wajah / Lokasi Gagal
                 </span>
                 <p className="mt-0.5 leading-relaxed font-medium">{errorMessage}</p>
@@ -328,58 +319,58 @@ export const PresensiPage: React.FC<PresensiPageProps> = ({
             </div>
           )}
 
-          {/* Primary Submit Attendance Button */}
+          {/* Primary Submit Attendance Button - Solid Flat Teal */}
           <button
             type="button"
             onClick={handleSubmit}
             disabled={isSubmitting}
-            className={`w-full py-4 px-6 rounded-2xl font-black text-sm tracking-wide shadow-xl transition-all duration-150 cursor-pointer flex items-center justify-center space-x-2.5 ${
+            className={`w-full py-3.5 px-5 rounded-xl font-bold text-xs sm:text-sm tracking-wide shadow-xs transition-colors cursor-pointer flex items-center justify-center space-x-2 ${
               isSubmitting
                 ? 'bg-slate-200 text-slate-400 cursor-wait'
-                : 'bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 hover:from-orange-600 hover:to-amber-600 text-white shadow-orange-500/25 active:scale-[0.99]'
+                : 'bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white'
             }`}
           >
             <Send className={`w-4 h-4 ${isSubmitting ? 'animate-bounce' : ''}`} />
             <span>
               {isSubmitting
-                ? 'Memproses AI & Menghitung Haversine...'
+                ? 'Memproses AI & Haversine...'
                 : capturedImage
                 ? 'KIRIM VERIFIKASI PRESENSI SEKARANG'
                 : 'AMBIL FOTO & KIRIM PRESENSI'}
             </span>
           </button>
 
-          {/* Recent Attendances / Riwayat Presensi Mini List */}
-          <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-[0_10px_30px_rgba(0,0,0,0.04)] space-y-3">
+          {/* Riwayat Absensi Mini */}
+          <div className="bg-white rounded-xl p-4 border border-slate-200/80 shadow-xs space-y-2.5">
             <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <History className="w-4 h-4 text-orange-500" />
-                <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">
-                  Riwayat Absensi Terakhir
+              <div className="flex items-center space-x-1.5">
+                <History className="w-3.5 h-3.5 text-teal-600" />
+                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                  Riwayat Terakhir
                 </h4>
               </div>
-              <span className="text-[10px] font-bold text-slate-400">
+              <span className="text-[10px] text-slate-400 font-medium">
                 {recentAttendances.length} Catatan
               </span>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {recentAttendances.length === 0 ? (
-                <div className="text-center py-6 text-slate-400 text-xs font-medium">
+                <div className="text-center py-4 text-slate-400 text-xs">
                   Belum ada catatan presensi hari ini.
                 </div>
               ) : (
                 recentAttendances.map((item) => (
                   <div
                     key={item.id}
-                    className="p-2.5 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between text-xs"
+                    className="p-2 rounded-lg bg-slate-50 border border-slate-200/70 flex items-center justify-between text-xs"
                   >
-                    <div className="flex items-center space-x-2.5">
-                      <div className="w-7 h-7 rounded-lg bg-orange-100 text-orange-700 flex items-center justify-center font-bold text-[10px]">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-6 h-6 rounded-md bg-teal-50 text-teal-700 flex items-center justify-center font-bold text-[10px]">
                         {item.simulated_case || 'AI'}
                       </div>
                       <div>
-                        <span className="font-bold text-slate-700 block truncate max-w-[140px]">
+                        <span className="font-bold text-slate-800 block text-xs truncate max-w-[140px]">
                           {item.name || item.nim}
                         </span>
                         <span className="text-[10px] text-slate-400 block font-mono">
@@ -389,13 +380,13 @@ export const PresensiPage: React.FC<PresensiPageProps> = ({
                     </div>
 
                     <span
-                      className={`text-[9px] font-black px-2 py-0.5 rounded-full ${
+                      className={`text-[9px] font-bold px-2 py-0.5 rounded-md ${
                         item.status === 'HADIR'
                           ? 'bg-emerald-100 text-emerald-800'
                           : item.status === 'TERLAMBAT'
-                          ? 'bg-purple-100 text-purple-800'
+                          ? 'bg-indigo-100 text-indigo-800'
                           : item.status === 'PERLU_VERIFIKASI_DOSEN'
-                          ? 'bg-orange-100 text-orange-800'
+                          ? 'bg-amber-100 text-amber-800'
                           : 'bg-rose-100 text-rose-800'
                       }`}
                     >
@@ -409,7 +400,7 @@ export const PresensiPage: React.FC<PresensiPageProps> = ({
         </div>
       </div>
 
-      {/* Success / Result Modal Popup */}
+      {/* Attendance Result Modal Popup */}
       {isSuccessModalOpen && result && (
         <AttendanceSuccessModal
           result={result}
