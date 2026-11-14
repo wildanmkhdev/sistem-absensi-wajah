@@ -1,0 +1,80 @@
+[
+  {
+    "id": "M1",
+    "nim": "2024001",
+    "nama": "Ahmad Fauzi",
+    "foto_profil": "data/foto_profil/M1_profil.jpg",
+    "foto_swafoto": "data/foto_swafoto/M1_selfie.jpg",
+    "skor_wajah": 0.92,
+    "jarak_meter": 20.0,
+    "keterlambatan_menit": 5,
+    "status_rancangan_awal": "HADIR",
+    "status_rancangan_uupdp": "HADIR",
+    "keterangan_kondisi": "Normal (duduk di baris depan, pencahayaan baik)"
+  },
+  {
+    "id": "M2",
+    "nim": "2024002",
+    "nama": "Siti Nurhaliza",
+    "foto_profil": "data/foto_profil/M2_profil.jpg",
+    "foto_swafoto": "data/foto_swafoto/M2_selfie.jpg",
+    "skor_wajah": 0.85,
+    "jarak_meter": 50.0,
+    "keterlambatan_menit": 15,
+    "status_rancangan_awal": "HADIR",
+    "status_rancangan_uupdp": "HADIR",
+    "keterangan_kondisi": "Tepat di semua batas (skor 0.85, jarak 50m, telat 15m)"
+  },
+  {
+    "id": "M3",
+    "nim": "2024003",
+    "nama": "Budi Santoso",
+    "foto_profil": "data/foto_profil/M3_profil.jpg",
+    "foto_swafoto": "data/foto_swafoto/M3_selfie.jpg",
+    "skor_wajah": 0.78,
+    "jarak_meter": 15.0,
+    "keterlambatan_menit": 3,
+    "status_rancangan_awal": "TIDAK_SAH",
+    "status_rancangan_uupdp": "PERLU_VERIFIKASI_DOSEN",
+    "keterangan_kondisi": "Kacamata baru, pencahayaan redup"
+  },
+  {
+    "id": "M4",
+    "nim": "2024004",
+    "nama": "Dewi Lestari",
+    "foto_profil": "data/foto_profil/M4_profil.jpg",
+    "foto_swafoto": "data/foto_swafoto/M4_selfie.jpg",
+    "skor_wajah": 0.95,
+    "jarak_meter": 70.0,
+    "keterlambatan_menit": 0,
+    "status_rancangan_awal": "TIDAK_SAH",
+    "status_rancangan_uupdp": "PERLU_VERIFIKASI_DOSEN",
+    "keterangan_kondisi": "Duduk di sudut ruang besar, GPS tidak akurat di dalam gedung beton"
+  },
+  {
+    "id": "M5",
+    "nim": "2024005",
+    "nama": "Eko Prasetyo",
+    "foto_profil": "data/foto_profil/M5_profil.jpg",
+    "foto_swafoto": "data/foto_swafoto/M5_selfie.jpg",
+    "skor_wajah": 0.4,
+    "jarak_meter": 10.0,
+    "keterlambatan_menit": 2,
+    "status_rancangan_awal": "TIDAK_SAH",
+    "status_rancangan_uupdp": "PERLU_VERIFIKASI_DOSEN",
+    "keterangan_kondisi": "Foto profil di sistem akademik berumur 6 tahun lalu"
+  },
+  {
+    "id": "M6",
+    "nim": "2024006",
+    "nama": "Rina Anggraini",
+    "foto_profil": "data/foto_profil/M6_profil.jpg",
+    "foto_swafoto": "data/foto_swafoto/M6_selfie.jpg",
+    "skor_wajah": 0.91,
+    "jarak_meter": 30.0,
+    "keterlambatan_menit": 28,
+    "status_rancangan_awal": "TERLAMBAT",
+    "status_rancangan_uupdp": "TERLAMBAT",
+    "keterangan_kondisi": "Terlambat lebih dari 15 menit sampai 30 menit"
+  }
+]

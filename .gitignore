@@ -1,0 +1,15 @@
+backend/venv/
+backend/__pycache__/
+backend/app/__pycache__/
+backend/app/**/__pycache__/
+backend/attendance.db
+backend/app/ml/weights/*.onnx
+frontend/node_modules/
+frontend/dist/
+*.pyc
+*.pyo
+.pytest_cache/
+.env
+# Keep dist for deployment (FastAPI serves it)
+!frontend/dist/
+!backend/static/

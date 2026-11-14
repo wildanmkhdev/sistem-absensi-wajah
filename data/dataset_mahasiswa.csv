@@ -1,0 +1,7 @@
+id,nim,nama,foto_profil,foto_swafoto,skor_wajah,jarak_meter,keterlambatan_menit,status_rancangan_awal,status_rancangan_uupdp,keterangan_kondisi
+M1,2024001,Ahmad Fauzi,data/foto_profil/M1_profil.jpg,data/foto_swafoto/M1_selfie.jpg,0.92,20.0,5,HADIR,HADIR,"Normal (duduk di baris depan, pencahayaan baik)"
+M2,2024002,Siti Nurhaliza,data/foto_profil/M2_profil.jpg,data/foto_swafoto/M2_selfie.jpg,0.85,50.0,15,HADIR,HADIR,"Tepat di semua batas (skor 0.85, jarak 50m, telat 15m)"
+M3,2024003,Budi Santoso,data/foto_profil/M3_profil.jpg,data/foto_swafoto/M3_selfie.jpg,0.78,15.0,3,TIDAK_SAH,PERLU_VERIFIKASI_DOSEN,"Kacamata baru, pencahayaan redup"
+M4,2024004,Dewi Lestari,data/foto_profil/M4_profil.jpg,data/foto_swafoto/M4_selfie.jpg,0.95,70.0,0,TIDAK_SAH,PERLU_VERIFIKASI_DOSEN,"Duduk di sudut ruang besar, GPS tidak akurat di dalam gedung beton"
+M5,2024005,Eko Prasetyo,data/foto_profil/M5_profil.jpg,data/foto_swafoto/M5_selfie.jpg,0.4,10.0,2,TIDAK_SAH,PERLU_VERIFIKASI_DOSEN,Foto profil di sistem akademik berumur 6 tahun lalu
+M6,2024006,Rina Anggraini,data/foto_profil/M6_profil.jpg,data/foto_swafoto/M6_selfie.jpg,0.91,30.0,28,TERLAMBAT,TERLAMBAT,Terlambat lebih dari 15 menit sampai 30 menit
