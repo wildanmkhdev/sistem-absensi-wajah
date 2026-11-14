@@ -183,7 +183,6 @@ export const PresensiPage: React.FC<PresensiPageProps> = ({
     <div className="space-y-4 sm:space-y-6 max-w-6xl mx-auto">
       {/* 1. Top Header Card (Clean Solid Flat Teal, No Gradient, No Orange) */}
       <AttendanceHeaderCard
-        student={currentStudent}
         onRekamPresensi={handleScrollToCamera}
         lastPresensi={result}
         isSubmitting={isSubmitting}
