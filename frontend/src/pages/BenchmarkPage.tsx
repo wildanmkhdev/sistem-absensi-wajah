@@ -38,8 +38,8 @@ export const BenchmarkPage: React.FC<BenchmarkPageProps> = ({ onSimulateInPresen
       {/* Title */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <span className="text-xs font-bold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100">
-            Studi Kasus Modul 13
+          <span className="text-[10px] font-black uppercase tracking-wider text-orange-600 bg-orange-50 px-3 py-1 rounded-full border border-orange-200">
+            Studi Kasus Modul 13 • Kelompok 6
           </span>
           <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight mt-1">
             Matriks Kasus M1 s.d. M6
@@ -52,9 +52,9 @@ export const BenchmarkPage: React.FC<BenchmarkPageProps> = ({ onSimulateInPresen
         <button
           onClick={loadBenchmark}
           disabled={isLoading}
-          className="flex items-center space-x-1.5 text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 px-3.5 py-2 rounded-xl border border-slate-200/80 shadow-xs transition self-start sm:self-center cursor-pointer"
+          className="flex items-center space-x-2 text-xs font-bold bg-white hover:bg-orange-50 text-slate-700 hover:text-orange-600 px-4 py-2.5 rounded-2xl border border-slate-200 shadow-xs transition self-start sm:self-center cursor-pointer"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-orange-500' : ''}`} />
           <span>Segarkan Data</span>
         </button>
       </div>
@@ -92,7 +92,7 @@ export const BenchmarkPage: React.FC<BenchmarkPageProps> = ({ onSimulateInPresen
             Payung Hukum Kepatuhan
           </span>
           <div className="flex items-center space-x-2 pt-1">
-            <ShieldCheck className="w-5 h-5 text-indigo-600" />
+            <ShieldCheck className="w-5 h-5 text-orange-500" />
             <span className="text-sm font-bold text-slate-800">UU No. 27 / 2022</span>
           </div>
           <p className="text-[11px] text-slate-400">
@@ -108,9 +108,9 @@ export const BenchmarkPage: React.FC<BenchmarkPageProps> = ({ onSimulateInPresen
           <div className="flex items-center space-x-1.5">
             <button
               onClick={() => setActiveFilter('ALL')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
                 activeFilter === 'ALL'
-                  ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                  ? 'bg-orange-500 text-white shadow-xs'
                   : 'text-slate-500 hover:bg-slate-50'
               }`}
             >
@@ -118,9 +118,9 @@ export const BenchmarkPage: React.FC<BenchmarkPageProps> = ({ onSimulateInPresen
             </button>
             <button
               onClick={() => setActiveFilter('OVERSIGHT_ONLY')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
                 activeFilter === 'OVERSIGHT_ONLY'
-                  ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                  ? 'bg-orange-500 text-white shadow-xs'
                   : 'text-slate-500 hover:bg-slate-50'
               }`}
             >
@@ -184,7 +184,7 @@ export const BenchmarkPage: React.FC<BenchmarkPageProps> = ({ onSimulateInPresen
                           ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                           : item.status_uupdp === 'TERLAMBAT'
                           ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                          : 'bg-blue-50 text-blue-700 border border-blue-200'
+                          : 'bg-orange-50 text-orange-700 border border-orange-200'
                       }`}
                     >
                       {item.status_uupdp === 'PERLU_VERIFIKASI_DOSEN'
@@ -201,7 +201,7 @@ export const BenchmarkPage: React.FC<BenchmarkPageProps> = ({ onSimulateInPresen
                     {onSimulateInPresensi && (
                       <button
                         onClick={() => onSimulateInPresensi(item.case_id as 'M1' | 'M2' | 'M3' | 'M4' | 'M5' | 'M6')}
-                        className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg transition cursor-pointer"
+                        className="text-[11px] font-bold text-orange-600 hover:text-orange-800 bg-orange-50 hover:bg-orange-100 px-3 py-1 rounded-xl transition cursor-pointer"
                       >
                         Uji
                       </button>

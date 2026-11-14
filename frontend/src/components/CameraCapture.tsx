@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Camera, RefreshCw, Upload, AlertCircle, Check, Sparkles, Image as ImageIcon } from 'lucide-react';
+import { Camera, Upload, AlertCircle, Check, X, SwitchCamera, Sparkles, Image as ImageIcon } from 'lucide-react';
 import { SAMPLE_SELFIES } from '../assets/sampleFaces';
 
 interface CameraCaptureProps {
@@ -8,6 +8,8 @@ interface CameraCaptureProps {
   onClearCapture: () => void;
   disabled?: boolean;
   selectedCaseId?: string;
+  onSelectCase?: (caseId: string) => void;
+  onClose?: () => void;
 }
 
 export const CameraCapture: React.FC<CameraCaptureProps> = ({
@@ -15,7 +17,9 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
   capturedImage,
   onClearCapture,
   disabled = false,
-  selectedCaseId = 'M1',
+  selectedCaseId = 'CUSTOM',
+  onSelectCase,
+  onClose,
 }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -25,6 +29,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState<boolean>(true);
   const [shutterFlash, setShutterFlash] = useState<boolean>(false);
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
 
   const stopCamera = useCallback(() => {
     if (streamRef.current) {
@@ -41,7 +46,6 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
     setIsInitializing(true);
     setCameraError(null);
 
-    // Stop current stream if running
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
@@ -53,19 +57,16 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
       }
 
       let stream: MediaStream;
-
-      // Coba akses kamera
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
             width: { ideal: 640 },
             height: { ideal: 480 },
-            facingMode: 'user',
+            facingMode,
           },
           audio: false,
         });
       } catch {
-        // Fallback constraint paling universal
         stream = await navigator.mediaDevices.getUserMedia({
           video: true,
           audio: false,
@@ -74,7 +75,6 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
 
       streamRef.current = stream;
 
-      // Pasang stream ke elemen video yang selalu ada di DOM
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.muted = true;
@@ -94,9 +94,8 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
     } finally {
       setIsInitializing(false);
     }
-  }, []);
+  }, [facingMode]);
 
-  // Mulai kamera saat komponen dimuat atau saat capturedImage dihapus
   useEffect(() => {
     if (!capturedImage) {
       startCamera();
@@ -109,13 +108,16 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
     };
   }, [capturedImage, startCamera, stopCamera]);
 
-  // Jaminan stream terhubung bila videoRef ter-attach
   useEffect(() => {
     if (videoRef.current && streamRef.current && !videoRef.current.srcObject) {
       videoRef.current.srcObject = streamRef.current;
       videoRef.current.play().catch(() => {});
     }
   });
+
+  const toggleFacingMode = () => {
+    setFacingMode((prev) => (prev === 'user' ? 'environment' : 'user'));
+  };
 
   const takeSnapshot = () => {
     if (!videoRef.current) return;
@@ -131,9 +133,11 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Mirror horizontal untuk selfie
-    ctx.translate(canvas.width, 0);
-    ctx.scale(-1, 1);
+    // Mirror horizontal for user selfie
+    if (facingMode === 'user') {
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+    }
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     const base64Data = canvas.toDataURL('image/jpeg', 0.9);
@@ -161,63 +165,76 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-sm space-y-4">
-      {/* Header Bar */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-2.5">
-          <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
-            <Camera className="w-4 h-4" />
-          </div>
-          <div>
-            <h3 className="font-bold text-slate-800 text-sm">Pemindai Wajah</h3>
-            <p className="text-[11px] text-slate-400">Posisikan wajah di dalam lingkaran panduan</p>
-          </div>
+    <div className="bg-white rounded-3xl border border-slate-100 shadow-[0_10px_30px_rgba(0,0,0,0.04)] overflow-hidden flex flex-col">
+      {/* Top Header - Matches Dribbble Screen 3 ("Ambil Foto Selfie") */}
+      <div className="p-4 sm:p-5 flex items-center justify-between border-b border-slate-100">
+        <div>
+          <h3 className="text-base font-extrabold text-slate-800 tracking-tight">
+            Ambil Foto Selfie
+          </h3>
+          <p className="text-xs text-slate-400 font-medium">
+            Pastikan wajah anda terlihat jelas di dalam frame
+          </p>
         </div>
 
-        {capturedImage ? (
-          <span className="inline-flex items-center space-x-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-            <Check className="w-3.5 h-3.5" />
-            <span>Foto Siap</span>
-          </span>
-        ) : cameraActive ? (
-          <span className="inline-flex items-center space-x-1.5 text-[11px] font-semibold text-indigo-700 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-200">
-            <span className="w-2 h-2 rounded-full bg-indigo-500 animate-ping" />
-            <span>Kamera Aktif</span>
-          </span>
-        ) : null}
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
-      {/* Viewport Box - Always contains <video> in DOM */}
-      <div className="relative w-full aspect-4/3 max-h-[360px] bg-slate-900 rounded-2xl overflow-hidden shadow-inner flex items-center justify-center">
-        {/* Shutter White Flash Animation */}
+      {/* Camera Viewfinder with Cyan/Teal Face Brackets (Exact Dribbble Match) */}
+      <div className="relative w-full aspect-4/3 max-h-[380px] bg-slate-950 overflow-hidden flex items-center justify-center">
+        {/* White Shutter Flash Effect */}
         {shutterFlash && (
-          <div className="absolute inset-0 bg-white z-30 transition-opacity duration-200 opacity-90 pointer-events-none" />
+          <div className="absolute inset-0 bg-white z-40 transition-opacity duration-200 opacity-95 pointer-events-none" />
         )}
 
-        {/* Live Video Element - ALWAYS MOUNTED IN DOM TO AVOID NULL REF */}
+        {/* Live Video Element */}
         <video
           ref={videoRef}
           autoPlay
           playsInline
           muted
-          className={`w-full h-full object-cover scale-x-[-1] ${
+          className={`w-full h-full object-cover ${facingMode === 'user' ? 'scale-x-[-1]' : ''} ${
             !capturedImage && cameraActive ? 'block' : 'hidden'
           }`}
         />
 
-        {/* Live Oval Silhouette Guide */}
+        {/* Cyan/Teal Face Guide Brackets - Dribbble Screen 3 */}
         {!capturedImage && cameraActive && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="w-[190px] h-[240px] sm:w-[220px] sm:h-[280px] rounded-[50%] border-2 border-dashed border-white/70 shadow-[0_0_0_9999px_rgba(15,23,42,0.4)] flex flex-col items-center justify-between p-4">
-              <span className="text-[10px] uppercase font-bold tracking-wider text-white bg-slate-900/70 px-2.5 py-0.5 rounded-full mt-2">
-                Posisikan Wajah
-              </span>
-              <Sparkles className="w-4 h-4 text-cyan-300 animate-pulse mb-2" />
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 p-6">
+            <div className="relative w-56 h-64 sm:w-64 sm:h-72 flex items-center justify-center">
+              {/* Top-Left Bracket */}
+              <div className="absolute top-0 left-0 w-10 h-10 border-t-4 border-l-4 border-cyan-400 rounded-tl-2xl shadow-[0_0_15px_rgba(6,182,212,0.6)]" />
+              {/* Top-Right Bracket */}
+              <div className="absolute top-0 right-0 w-10 h-10 border-t-4 border-r-4 border-cyan-400 rounded-tr-2xl shadow-[0_0_15px_rgba(6,182,212,0.6)]" />
+              {/* Bottom-Left Bracket */}
+              <div className="absolute bottom-0 left-0 w-10 h-10 border-b-4 border-l-4 border-cyan-400 rounded-bl-2xl shadow-[0_0_15px_rgba(6,182,212,0.6)]" />
+              {/* Bottom-Right Bracket */}
+              <div className="absolute bottom-0 right-0 w-10 h-10 border-b-4 border-r-4 border-cyan-400 rounded-br-2xl shadow-[0_0_15px_rgba(6,182,212,0.6)]" />
+
+              {/* Center Target Crosshair / Subtle Pulse */}
+              <div className="w-16 h-16 rounded-full border border-cyan-400/30 flex items-center justify-center animate-pulse">
+                <Sparkles className="w-5 h-5 text-cyan-300" />
+              </div>
+
+              {/* Helper text pill at bottom of viewfinder */}
+              <div className="absolute bottom-4 inset-x-0 flex justify-center">
+                <span className="text-[11px] font-bold text-white bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/20 shadow-md">
+                  Posisikan wajah Anda tegak
+                </span>
+              </div>
             </div>
           </div>
         )}
 
-        {/* View 1: Display Captured Image */}
+        {/* View: Captured Image Display */}
         {capturedImage && (
           <div className="relative w-full h-full">
             <img
@@ -225,16 +242,21 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
               alt="Hasil Swafoto"
               className="w-full h-full object-cover"
             />
-            <div className="absolute bottom-3 left-3 right-3 bg-white/95 backdrop-blur-md rounded-xl p-2.5 shadow-sm border border-slate-100 flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-700 flex items-center space-x-1.5">
+            <div className="absolute top-3 left-3 bg-emerald-500/90 backdrop-blur-md text-white text-xs font-bold px-3 py-1 rounded-full shadow-md flex items-center space-x-1.5">
+              <Check className="w-3.5 h-3.5" />
+              <span>Foto Siap Dianalisis</span>
+            </div>
+
+            <div className="absolute bottom-3 inset-x-3 bg-white/95 backdrop-blur-md rounded-2xl p-2.5 shadow-lg border border-slate-100 flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-700 flex items-center space-x-1.5 ml-2">
                 <Check className="w-4 h-4 text-emerald-600" />
-                <span>Foto Wajah Terpilih</span>
+                <span>Wajah Berhasil Diambil</span>
               </span>
               <button
                 type="button"
                 onClick={onClearCapture}
                 disabled={disabled}
-                className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1 rounded-lg transition cursor-pointer"
+                className="text-xs font-bold text-orange-600 bg-orange-50 hover:bg-orange-100 px-3.5 py-1.5 rounded-xl transition cursor-pointer"
               >
                 Ambil Ulang
               </button>
@@ -242,37 +264,27 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
           </div>
         )}
 
-        {/* View 2: Camera Error / Inactive State */}
+        {/* View: Camera Inactive or Error */}
         {!capturedImage && !cameraActive && (
-          <div className="text-center p-6 space-y-3 max-w-sm z-10">
+          <div className="text-center p-6 space-y-3 max-w-sm z-10 text-white">
             <div className="w-12 h-12 rounded-full bg-slate-800 text-slate-400 mx-auto flex items-center justify-center">
               <AlertCircle className="w-6 h-6 text-amber-400" />
             </div>
             <div>
-              <p className="text-xs text-slate-200 font-semibold leading-relaxed">
-                {isInitializing ? 'Memulai webcam...' : cameraError || 'Webcam belum aktif.'}
+              <p className="text-xs font-semibold leading-relaxed">
+                {isInitializing ? 'Memulai sensor webcam...' : cameraError || 'Webcam belum aktif.'}
               </p>
               <p className="text-[11px] text-slate-400 mt-1">
-                Pastikan izin webcam diberikan pada browser, atau gunakan opsi di bawah.
+                Gunakan tombol Upload atau pilih foto sampel KTM di bawah.
               </p>
             </div>
-            <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
-              <button
-                type="button"
-                onClick={startCamera}
-                className="text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-xl shadow-xs transition cursor-pointer"
-              >
-                Aktifkan Webcam
-              </button>
-              <button
-                type="button"
-                onClick={() => handleUseSamplePhoto(selectedCaseId)}
-                className="text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 px-3.5 py-2 rounded-xl border border-slate-700 transition flex items-center space-x-1 cursor-pointer"
-              >
-                <ImageIcon className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Foto Sampel</span>
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={startCamera}
+              className="text-xs font-bold bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl transition shadow-md cursor-pointer"
+            >
+              Coba Nyalakan Ulang
+            </button>
           </div>
         )}
 
@@ -286,53 +298,87 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
         />
       </div>
 
-      {/* Shutter / Action Controls */}
-      <div className="flex items-center justify-between pt-1">
-        <div className="flex items-center space-x-2">
+      {/* Bottom Shutter Controls - Exact Dribbble Screen 3 */}
+      <div className="p-4 sm:p-5 bg-white space-y-4">
+        {/* Dribbble Style 3-Control Bar */}
+        <div className="flex items-center justify-around py-1">
+          {/* Left: Switch Camera / Flip or Upload */}
+          <button
+            type="button"
+            onClick={toggleFacingMode}
+            disabled={disabled}
+            className="w-12 h-12 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition active:scale-95 cursor-pointer shadow-xs"
+            title="Ganti Kamera Depan / Belakang"
+          >
+            <SwitchCamera className="w-5 h-5 text-slate-600" />
+          </button>
+
+          {/* Center: Large Vibrant Orange Shutter Button (Dribbble Ref) */}
+          <button
+            type="button"
+            onClick={takeSnapshot}
+            disabled={disabled || !cameraActive}
+            className={`w-18 h-18 rounded-full bg-gradient-to-tr from-amber-500 via-orange-500 to-amber-600 text-white shadow-xl shadow-orange-500/35 flex items-center justify-center transition-all duration-150 cursor-pointer active:scale-90 ${
+              disabled || !cameraActive
+                ? 'opacity-40 cursor-not-allowed'
+                : 'hover:scale-105 hover:shadow-orange-500/50'
+            }`}
+            title="Ambil Foto Selfie Wajah"
+          >
+            <div className="w-14 h-14 rounded-full border-2 border-white/80 flex items-center justify-center">
+              <Camera className="w-7 h-7" />
+            </div>
+          </button>
+
+          {/* Right: Upload File KTM / Galeri */}
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled}
-            className="text-xs font-semibold text-slate-600 hover:text-indigo-600 flex items-center space-x-1 py-1.5 px-3 rounded-xl hover:bg-slate-50 transition cursor-pointer"
+            className="w-12 h-12 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition active:scale-95 cursor-pointer shadow-xs"
+            title="Upload Foto dari Galeri"
           >
-            <Upload className="w-3.5 h-3.5" />
-            <span>Upload Foto</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleUseSamplePhoto(selectedCaseId)}
-            disabled={disabled}
-            className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center space-x-1 py-1.5 px-3 rounded-xl bg-indigo-50 hover:bg-indigo-100 transition cursor-pointer"
-          >
-            <ImageIcon className="w-3.5 h-3.5" />
-            <span>Foto Sampel ({selectedCaseId})</span>
+            <Upload className="w-5 h-5 text-slate-600" />
           </button>
         </div>
 
-        {!capturedImage && cameraActive && (
-          <button
-            type="button"
-            onClick={takeSnapshot}
-            disabled={disabled}
-            className="flex items-center space-x-2 py-2 px-5 rounded-2xl font-bold text-xs bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm shadow-indigo-200 active:scale-95 transition cursor-pointer"
-          >
-            <Camera className="w-4 h-4" />
-            <span>Ambil Foto</span>
-          </button>
-        )}
+        {/* Quick Simulation Bar for Modul 13 Cases M1 to M6 */}
+        <div className="pt-2 border-t border-slate-100 space-y-2">
+          <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+            <span className="flex items-center space-x-1">
+              <Sparkles className="w-3.5 h-3.5 text-orange-500" />
+              <span>Simulasi Cepat Modul 13:</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => handleUseSamplePhoto(selectedCaseId)}
+              className="text-orange-600 hover:text-orange-700 font-bold lowercase flex items-center space-x-1 cursor-pointer"
+            >
+              <ImageIcon className="w-3 h-3" />
+              <span>Gunakan Sampel ({selectedCaseId})</span>
+            </button>
+          </div>
 
-        {capturedImage && (
-          <button
-            type="button"
-            onClick={onClearCapture}
-            disabled={disabled}
-            className="text-xs font-semibold text-slate-600 hover:text-slate-900 flex items-center space-x-1 py-1 px-3 rounded-xl hover:bg-slate-100 transition cursor-pointer"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span>Foto Lain</span>
-          </button>
-        )}
+          <div className="grid grid-cols-6 gap-1.5">
+            {['M1', 'M2', 'M3', 'M4', 'M5', 'M6'].map((caseId) => (
+              <button
+                key={caseId}
+                type="button"
+                onClick={() => {
+                  if (onSelectCase) onSelectCase(caseId);
+                  handleUseSamplePhoto(caseId);
+                }}
+                className={`py-1.5 text-xs font-black rounded-xl border transition cursor-pointer text-center ${
+                  selectedCaseId === caseId
+                    ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
+                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-orange-50 hover:border-orange-200 hover:text-orange-600'
+                }`}
+              >
+                {caseId}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );

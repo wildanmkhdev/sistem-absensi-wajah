@@ -4,24 +4,58 @@
 
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-800 min-h-screen antialiased selection:bg-indigo-100 selection:text-indigo-900;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    @apply bg-[#F8FAFC] text-slate-800 min-h-screen antialiased selection:bg-orange-100 selection:text-orange-900;
+    font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   }
 }
 
-/* Soft pastel glassmorphism and subtle animations */
-.pastel-card {
-  @apply bg-white border border-slate-200/80 rounded-2xl shadow-sm transition-all duration-200 hover:shadow-md;
+/* Gradient & Glow Helpers based on Dribbble Ref */
+.bg-dribbble-header {
+  background: linear-gradient(135deg, #FFA726 0%, #FB8C00 45%, #F57C00 100%);
 }
 
-.pastel-glow-emerald {
-  box-shadow: 0 4px 20px -2px rgba(16, 185, 129, 0.15);
+.bg-dribbble-teal {
+  background: linear-gradient(135deg, #00B4D8 0%, #0096C7 100%);
 }
 
-.pastel-glow-indigo {
-  box-shadow: 0 4px 20px -2px rgba(99, 102, 241, 0.15);
+.card-dribbble {
+  @apply bg-white border border-slate-100/80 rounded-3xl shadow-[0_10px_30px_rgba(0,0,0,0.04)] transition-all duration-200;
 }
 
-.pastel-glow-amber {
-  box-shadow: 0 4px 20px -2px rgba(245, 158, 11, 0.15);
+.card-dribbble-elevated {
+  @apply bg-white border border-orange-100/60 rounded-3xl shadow-[0_12px_36px_rgba(245,124,0,0.12)] transition-all duration-200;
+}
+
+/* Animated pulse ring for GPS location pin */
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.4);
+    opacity: 0.2;
+  }
+  100% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Custom scrollbar for mobile / lists */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Viewport device frame shadow for mobile preview */
+.mobile-device-shadow {
+  box-shadow: 0 25px 60px -15px rgba(245, 124, 0, 0.2), 0 0 0 12px #1E293B, 0 0 0 14px #0F172A;
 }

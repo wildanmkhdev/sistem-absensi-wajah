@@ -85,7 +85,7 @@ export const AttendanceSuccessModal: React.FC<AttendanceSuccessModalProps> = ({
           {/* Student Info Card */}
           <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-100 flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-sm">
+              <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center font-bold text-sm">
                 <User className="w-5 h-5" />
               </div>
               <div>
@@ -96,7 +96,7 @@ export const AttendanceSuccessModal: React.FC<AttendanceSuccessModalProps> = ({
             <div className="text-right">
               <span className="text-xs text-slate-400 font-medium">Metode</span>
               <p className="text-xs font-semibold text-slate-700 flex items-center space-x-1">
-                <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                <Sparkles className="w-3.5 h-3.5 text-orange-500" />
                 <span>Face AI</span>
               </p>
             </div>
@@ -139,12 +139,12 @@ export const AttendanceSuccessModal: React.FC<AttendanceSuccessModalProps> = ({
 
           {/* Key Metrics Grid */}
           <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-2.5">
-              <span className="text-[10px] text-indigo-600 font-semibold block">Skor Wajah</span>
-              <span className="text-base font-extrabold text-indigo-950">
+            <div className="bg-orange-50/60 border border-orange-100 rounded-2xl p-2.5">
+              <span className="text-[10px] text-orange-600 font-bold block">Skor Wajah</span>
+              <span className="text-base font-black text-orange-950 font-mono">
                 {(result.similarity_score * 100).toFixed(1)}%
               </span>
-              <span className="text-[9px] text-indigo-500 block">Ambang: ≥ 85%</span>
+              <span className="text-[9px] text-orange-600/80 block">Ambang: ≥ 85%</span>
             </div>
 
             <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-2.5">
@@ -176,9 +176,9 @@ export const AttendanceSuccessModal: React.FC<AttendanceSuccessModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="w-full py-3 px-5 rounded-xl font-bold text-sm bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm shadow-indigo-200 transition active:scale-[0.99] cursor-pointer"
+            className="w-full py-3.5 px-5 rounded-2xl font-black text-sm bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-md shadow-orange-500/20 transition active:scale-[0.99] cursor-pointer"
           >
-            Selesai
+            Tutup &amp; Selesai
           </button>
         </div>
       </div>

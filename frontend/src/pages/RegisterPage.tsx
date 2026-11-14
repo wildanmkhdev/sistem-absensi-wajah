@@ -66,8 +66,8 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onRegisteredSuccess 
     <div className="space-y-6 max-w-2xl mx-auto">
       {/* Title */}
       <div className="text-center space-y-1">
-        <span className="text-xs font-bold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100">
-          Pendaftaran Mahasiswa
+        <span className="text-[10px] font-black uppercase tracking-wider text-orange-600 bg-orange-50 px-3 py-1 rounded-full border border-orange-200">
+          Pendaftaran Mahasiswa Baru
         </span>
         <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">
           Daftarkan Wajah Baru
@@ -91,7 +91,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onRegisteredSuccess 
                 value={nim}
                 onChange={(e) => setNim(e.target.value)}
                 placeholder="Contoh: 2024007"
-                className="w-full text-xs font-medium bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-white transition"
+                className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:bg-white transition"
               />
             </div>
 
@@ -105,7 +105,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onRegisteredSuccess 
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Contoh: Muhammad Wildan"
-                className="w-full text-xs font-medium bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-white transition"
+                className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:bg-white transition"
               />
             </div>
           </div>
@@ -145,10 +145,10 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onRegisteredSuccess 
           <button
             type="submit"
             disabled={isSubmitting}
-            className={`w-full flex items-center justify-center space-x-2 py-3.5 px-6 rounded-2xl font-bold text-xs shadow-md transition cursor-pointer ${
+            className={`w-full flex items-center justify-center space-x-2 py-4 px-6 rounded-2xl font-black text-sm shadow-md transition cursor-pointer ${
               isSubmitting
                 ? 'bg-slate-200 text-slate-400 cursor-wait'
-                : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-100 active:scale-[0.99]'
+                : 'bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 hover:from-orange-600 hover:to-amber-600 text-white shadow-orange-500/25 active:scale-[0.99]'
             }`}
           >
             <UserPlus className="w-4 h-4" />
