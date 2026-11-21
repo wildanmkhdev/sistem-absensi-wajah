@@ -1,13 +1,30 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { History, RefreshCw, Search, CheckCircle2, Clock, ShieldAlert, XCircle } from 'lucide-react';
 import { fetchAttendances } from '../api';
 import type { AttendanceRecord, AttendanceStatus } from '../types';
+import type { Role } from '../auth';
 
-export const HistoryPage: React.FC = () => {
+interface HistoryPageProps {
+  role: Role;
+  nim?: string;
+}
+
+const formatTime = (timestamp: string): string => {
+  if (!timestamp) return '-';
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) {
+    return timestamp.split(' ')[1] || timestamp;
+  }
+  return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+};
+
+export const HistoryPage: React.FC<HistoryPageProps> = ({ role, nim }) => {
   const [attendances, setAttendances] = useState<AttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+
+  const isLecturer = role === 'dosen';
 
   const loadData = async () => {
     setIsLoading(true);
@@ -25,11 +42,16 @@ export const HistoryPage: React.FC = () => {
     loadData();
   }, []);
 
-  const filteredList = attendances.filter((item) => {
+  const visibleList = nim ? attendances.filter((item) => item.nim === nim) : attendances;
+
+  const filteredList = visibleList.filter((item) => {
+    if (!isLecturer) return true;
+
+    const query = searchQuery.toLowerCase();
     const matchesSearch =
-      item.nim.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (item.name && item.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (item.simulated_case && item.simulated_case.toLowerCase().includes(searchQuery.toLowerCase()));
+      item.nim.toLowerCase().includes(query) ||
+      (item.name && item.name.toLowerCase().includes(query)) ||
+      (item.simulated_case && item.simulated_case.toLowerCase().includes(query));
 
     const matchesStatus = statusFilter === 'ALL' || item.status === statusFilter;
 
@@ -69,65 +91,48 @@ export const HistoryPage: React.FC = () => {
     }
   };
 
+  const title = isLecturer ? 'Riwayat Kelas' : 'Riwayat Presensi Saya';
+
   return (
-    <div className="space-y-4 sm:space-y-6 max-w-6xl mx-auto">
-      {/* Header Banner - Solid Flat Palette */}
-      <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+    <div className="space-y-3 sm:space-y-4 max-w-6xl mx-auto">
+      {/* Header */}
+      <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <div className="flex items-center space-x-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200/60">
-              Database Log Presensi
-            </span>
-            <span className="text-[10px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md">
-              Total {attendances.length} Rekaman
+          <div className="flex items-center space-x-2 flex-wrap">
+            <h1 className="text-lg sm:text-xl font-bold text-slate-800 tracking-tight">{title}</h1>
+            <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">
+              {filteredList.length} rekaman
             </span>
           </div>
-          <h1 className="text-lg sm:text-xl font-bold text-slate-800 tracking-tight mt-1">
-            Riwayat Presensi Mahasiswa
-          </h1>
-          <p className="text-xs text-slate-500">
-            Log pencocokan biometrik wajah, jarak Haversine GPS, dan catatan audit dosen.
-          </p>
+          <p className="text-xs text-slate-500">Log presensi, skor wajah, dan keputusan dosen.</p>
         </div>
 
         <button
           onClick={loadData}
           disabled={isLoading}
-          className="flex items-center space-x-1.5 text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 px-3.5 py-2 rounded-xl border border-slate-200 transition shadow-xs self-start md:self-center cursor-pointer"
+          className="flex items-center space-x-1.5 text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 px-3.5 py-2 rounded-xl border border-slate-200 transition shadow-xs self-start sm:self-center cursor-pointer"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-teal-600' : ''}`} />
           <span>Segarkan Log</span>
         </button>
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-200/80 p-4 shadow-xs space-y-3.5">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
-          {/* Status Tabs */}
-          <div className="flex flex-wrap gap-1">
-            {[
-              { id: 'ALL', label: 'Semua Status' },
-              { id: 'HADIR', label: 'Hadir' },
-              { id: 'TERLAMBAT', label: 'Terlambat' },
-              { id: 'PERLU_VERIFIKASI_DOSEN', label: 'Verifikasi Dosen' },
-              { id: 'TIDAK_SAH', label: 'Tidak Sah' },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setStatusFilter(tab.id)}
-                className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition cursor-pointer ${
-                  statusFilter === tab.id
-                    ? 'bg-teal-600 text-white shadow-xs'
-                    : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200/80'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+      {/* Lecturer Filter and Search Bar */}
+      {isLecturer && (
+        <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-200/80 p-3 sm:p-4 shadow-xs flex flex-col sm:flex-row sm:items-center gap-2.5">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-600 sm:w-48 cursor-pointer"
+          >
+            <option value="ALL">Semua Status</option>
+            <option value="HADIR">Hadir</option>
+            <option value="TERLAMBAT">Terlambat</option>
+            <option value="PERLU_VERIFIKASI_DOSEN">Verifikasi Dosen</option>
+            <option value="TIDAK_SAH">Tidak Sah</option>
+          </select>
 
-          {/* Search Box */}
-          <div className="relative w-full sm:w-64">
+          <div className="relative flex-1">
             <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
             <input
               type="text"
@@ -138,8 +143,10 @@ export const HistoryPage: React.FC = () => {
             />
           </div>
         </div>
+      )}
 
-        {/* Content Table */}
+      {/* Content Table */}
+      <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-200/80 p-3 sm:p-4 shadow-xs">
         {isLoading ? (
           <div className="py-12 flex flex-col items-center justify-center text-slate-400 space-y-2">
             <RefreshCw className="w-6 h-6 animate-spin text-teal-600" />
@@ -149,7 +156,11 @@ export const HistoryPage: React.FC = () => {
           <div className="py-12 text-center text-slate-400 space-y-1">
             <History className="w-8 h-8 text-slate-300 mx-auto" />
             <p className="text-xs font-bold text-slate-700">Tidak Ada Rekaman Ditemukan</p>
-            <p className="text-[11px] text-slate-400">Silakan lakukan presensi pada menu Presensi.</p>
+            <p className="text-[11px] text-slate-400">
+              {isLecturer
+                ? 'Belum ada presensi yang cocok dengan filter.'
+                : 'Silakan lakukan presensi pada menu Presensi.'}
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-slate-200/70">
@@ -162,7 +173,7 @@ export const HistoryPage: React.FC = () => {
                   <th className="px-3 py-3 text-center">Jarak</th>
                   <th className="px-3 py-3 text-center">Telat</th>
                   <th className="px-3 py-3 text-center">Status</th>
-                  <th className="px-3.5 py-3">Catatan / Alasan</th>
+                  <th className="px-3.5 py-3 hidden sm:table-cell">Catatan / Alasan</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -185,7 +196,7 @@ export const HistoryPage: React.FC = () => {
                     </td>
 
                     <td className="px-3 py-3 text-center font-mono text-[11px] text-slate-600">
-                      {item.timestamp ? item.timestamp.split(' ')[1] || item.timestamp : '-'}
+                      {formatTime(item.timestamp)}
                     </td>
 
                     <td className="px-3 py-3 text-center">
@@ -206,7 +217,7 @@ export const HistoryPage: React.FC = () => {
                       {getStatusBadge(item.status)}
                     </td>
 
-                    <td className="px-3.5 py-3 max-w-xs text-slate-600 text-[11px]">
+                    <td className="px-3.5 py-3 max-w-xs text-slate-600 text-[11px] hidden sm:table-cell">
                       <div className="line-clamp-2" title={item.lecturer_note || item.decision_reason}>
                         {item.lecturer_note ? (
                           <span className="text-teal-800 font-medium">

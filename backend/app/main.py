@@ -25,6 +25,7 @@ from app.core.rules import (
     BENCHMARK_CASES,
     AttendanceStatus,
     HumanOversightStatus,
+    FACE_MATCH_THRESHOLD,
 )
 from app.db.database import (
     init_db,
@@ -99,8 +100,8 @@ class PresensiApiRequest(BaseModel):
     nim: Optional[str] = Field(None, description="NIM Mahasiswa (Opsional, kosongkan untuk Auto-Detect dari wajah)")
     name: Optional[str] = Field(None, description="Nama Mahasiswa (opsional)")
     face_image: Optional[str] = Field(None, description="Foto swafoto kamera (Base64 data URL atau raw)")
-    latitude: float = Field(-6.200000, description="Latitude GPS saat ini")
-    longitude: float = Field(106.816666, description="Longitude GPS saat ini")
+    latitude: Optional[float] = Field(None, description="Latitude GPS saat ini (wajib untuk presensi non-simulasi)")
+    longitude: Optional[float] = Field(None, description="Longitude GPS saat ini (wajib untuk presensi non-simulasi)")
     late_minutes: float = Field(0.0, description="Keterlambatan dalam menit")
     simulated_case: Optional[str] = Field(None, description="Simulasi kasus M1, M2, M3, M4, M5, M6")
 
@@ -161,26 +162,41 @@ def register_student(req: RegisterRequest):
     """
     Mendaftarkan profil mahasiswa dan mengekstrak vektor biometrik wajah 512-D.
     """
-    embedding_list = None
-    if req.face_image and process_face_image is not None:
-        try:
-            emb = process_face_image(req.face_image)
-            embedding_list = emb.tolist()
-        except Exception as e:
-            logger.warning(f"Ekstraksi fitur wajah gagal pada registrasi: {e}")
+    if not req.face_image:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="face_image wajib untuk pendaftaran biometrik.",
+        )
+    if process_face_image is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Mesin ekstraksi wajah tidak tersedia.",
+        )
+    try:
+        embedding = process_face_image(req.face_image)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Gagal mengekstrak embedding wajah: {exc}",
+        ) from exc
+    if embedding is None or len(embedding) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Embedding wajah kosong; pendaftaran dibatalkan.",
+        )
 
     student = create_or_update_student(
         nim=req.nim,
         name=req.name,
-        profile_image_path=f"data/profiles/{req.nim}.jpg" if req.face_image else None,
-        embedding=embedding_list,
+        profile_image_path=f"data/profiles/{req.nim}.jpg",
+        embedding=embedding.tolist(),
     )
 
     return {
         "success": True,
         "nim": student["nim"],
         "name": student["name"],
-        "has_embedding": embedding_list is not None,
+        "has_embedding": True,
         "message": f"Mahasiswa {student['name']} ({student['nim']}) berhasil didaftarkan.",
     }
 
@@ -201,9 +217,22 @@ def submit_presensi(req: PresensiApiRequest):
     sim_case = req.simulated_case.upper() if req.simulated_case else None
     case_def = next((c for c in BENCHMARK_CASES if c["id"] == sim_case), None)
 
+    # Gerbang fail-closed: presensi non-simulasi wajib menyertakan bukti wajah dan lokasi.
+    if case_def is None:
+        if not req.face_image:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="face_image wajib untuk presensi non-simulasi.",
+            )
+        if req.latitude is None or req.longitude is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="latitude dan longitude wajib untuk presensi non-simulasi.",
+            )
+
     student = None
     student_name = "Mahasiswa Terdeteksi"
-    similarity_score = 0.88
+    similarity_score = 0.0
 
     # 1. Jika ada foto wajah dan ML engine siap, lakukan ekstraksi biometrik
     if req.face_image and process_face_image is not None:
@@ -223,7 +252,11 @@ def submit_presensi(req: PresensiApiRequest):
                     stored_emb = np.array(student["embedding"], dtype=np.float32)
                     similarity_score = round(compute_similarity(input_emb, stored_emb), 2)
                 else:
-                    similarity_score = 0.90
+                    logger.warning(
+                        "Verifikasi 1:1 gagal: mahasiswa %s belum memiliki embedding referensi.",
+                        req.nim,
+                    )
+                    similarity_score = 0.0
             else:
                 # Kasus B: 1:N AUTO-IDENTIFICATION DARI WAJAH ASLI
                 candidates = get_all_students_with_embeddings()
@@ -275,7 +308,7 @@ def submit_presensi(req: PresensiApiRequest):
         late_minutes = float(case_def["late"])
         similarity_score = float(case_def["score"])
     else:
-        distance_meters = calculate_classroom_distance(req.latitude, req.longitude)
+        distance_meters = calculate_classroom_distance(float(req.latitude), float(req.longitude))
         late_minutes = float(req.late_minutes)
     # 3. Jalankan Decision Engine (Dual Evaluation)
     eval_result = evaluate_presensi(
@@ -307,12 +340,13 @@ def submit_presensi(req: PresensiApiRequest):
 
     saved_attendance = create_attendance(record_data)
     formatted = _format_attendance(saved_attendance)
+    identified_nim = record_data["nim"]
 
     # Kembalikan response terpadu
     return {
         "id": formatted.get("id"),
         "student_id": formatted.get("id"),
-        "nim": req.nim,
+        "nim": identified_nim,
         "name": student_name,
         "student_name": student_name,
         "status": formatted.get("status"),

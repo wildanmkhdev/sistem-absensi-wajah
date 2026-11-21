@@ -17,10 +17,7 @@ logger = logging.getLogger("app.db")
 # ==============================================================================
 # KONFIGURASI KONEKSI
 # ==============================================================================
-DATABASE_URL: str = os.environ.get(
-    "DATABASE_URL",
-    "postgresql://neondb_owner:npg_9wDaLoxCc8Tj@ep-shiny-tree-bcuvpifk-pooler.c-16.us-east-1.aws.neon.tech/neondb?sslmode=require",
-)
+DATABASE_URL: str = os.environ.get("DATABASE_URL", "").strip()
 
 # SQLite sebagai fallback lokal
 DB_PATH: str = os.path.abspath(
@@ -34,6 +31,10 @@ _USE_NEON: bool = False
 def _init_neon_driver() -> bool:
     """Coba import psycopg2 dan connect ke Neon. Return True jika berhasil."""
     global _USE_NEON
+    if not DATABASE_URL:
+        _USE_NEON = False
+        logger.info("DATABASE_URL kosong; memakai SQLite.")
+        return False
     try:
         import psycopg2  # noqa: F401
         conn = _get_neon_conn()
@@ -319,7 +320,12 @@ def get_all_students() -> List[Dict[str, Any]]:
         cur.execute("SELECT nim, name, profile_image_path, (embedding IS NOT NULL) as has_embedding, created_at FROM students ORDER BY nim ASC")
         rows = cur.fetchall()
         conn.close()
-        return [dict(r) for r in rows]
+        result = []
+        for r in rows:
+            item = dict(r)
+            item["has_embedding"] = bool(item["has_embedding"])
+            result.append(item)
+        return result
 
 
 def get_all_students_with_embeddings() -> List[Dict[str, Any]]:

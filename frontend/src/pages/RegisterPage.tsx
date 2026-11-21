@@ -47,7 +47,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onRegisteredSuccess 
         setCapturedImage(null);
         setTimeout(() => {
           onRegisteredSuccess();
-        }, 1200);
+        }, 800);
       } else {
         setStatusMessage({
           type: 'error',
@@ -63,21 +63,16 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onRegisteredSuccess 
   };
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto">
+    <div className="max-w-xl mx-auto space-y-4">
       {/* Title */}
-      <div className="text-center space-y-1">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-teal-700 bg-teal-50 px-2.5 py-0.5 rounded-md border border-teal-200/60">
-          Pendaftaran Mahasiswa Baru
-        </span>
-        <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">
-          Daftarkan Wajah Baru
+      <div className="space-y-1">
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">
+          Daftarkan Wajah
         </h1>
-        <p className="text-xs text-slate-500 max-w-md mx-auto">
-          Foto wajah ini akan menjadi data referensi resmi untuk verifikasi presensi.
-        </p>
+        <p className="text-xs text-slate-500">Foto ini menjadi referensi biometrik presensi.</p>
       </div>
 
-      <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-sm space-y-5">
+      <div className="bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-5 shadow-xs space-y-4">
         {/* Form Inputs */}
         <form onSubmit={handleRegister} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

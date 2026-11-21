@@ -1,11 +1,13 @@
 import React from 'react';
 import { MobileBottomNav } from './MobileBottomNav';
+import type { Role } from '../auth';
 
 interface MobileFrameProps {
   children: React.ReactNode;
   activeTab: string;
   setActiveTab: (tab: string) => void;
   pendingOversightCount: number;
+  role: Role;
 }
 
 export const MobileFrame: React.FC<MobileFrameProps> = ({
@@ -13,6 +15,7 @@ export const MobileFrame: React.FC<MobileFrameProps> = ({
   activeTab,
   setActiveTab,
   pendingOversightCount,
+  role,
 }) => {
   return (
     <div className="w-full flex flex-col min-h-screen">
@@ -25,6 +28,7 @@ export const MobileFrame: React.FC<MobileFrameProps> = ({
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           pendingOversightCount={pendingOversightCount}
+          role={role}
         />
       </div>
     </div>

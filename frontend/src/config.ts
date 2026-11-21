@@ -6,11 +6,6 @@ export const API_BASE_URL =
     ? ''
     : 'http://localhost:7860');
 
-// Neon Serverless PostgreSQL Database Connection
-export const NEON_DATABASE_URL =
-  import.meta.env.VITE_NEON_DATABASE_URL ||
-  'postgresql://neondb_owner:npg_9wDaLoxCc8Tj@ep-shiny-tree-bcuvpifk-pooler.c-16.us-east-1.aws.neon.tech/neondb?sslmode=require';
-
 // Lokasi Target Ruang Kelas (Sesuai Studi Kasus Modul 13 Kelompok 6)
 export const DEFAULT_CLASSROOM = {
   name: 'Ruang Kuliah Lab AI (Gedung B Lt. 3)',

@@ -1,55 +1,66 @@
 import React from 'react';
-import { Camera, ShieldCheck, Award, UserPlus, History } from 'lucide-react';
+import { Camera, ShieldCheck, Award, UserPlus, History, LogOut } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import type { Role } from '../auth';
+
+interface NavItem {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  badge?: number | null;
+}
 
 interface NavbarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   pendingOversightCount: number;
+  role: Role;
+  sessionName: string;
+  onLogout: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   setActiveTab,
   pendingOversightCount,
+  role,
+  sessionName,
+  onLogout,
 }) => {
-  const navItems = [
-    { id: 'presensi', label: 'Presensi', icon: Camera },
-    {
-      id: 'oversight',
-      label: 'Review Dosen',
-      icon: ShieldCheck,
-      badge: pendingOversightCount > 0 ? pendingOversightCount : null,
-    },
-    { id: 'benchmark', label: 'Kasus M1-M6', icon: Award },
-    { id: 'history', label: 'Riwayat Log', icon: History },
-    { id: 'register', label: 'Daftar Wajah', icon: UserPlus },
-  ];
+  const isDosen = role === 'dosen';
+
+  const navItems: NavItem[] = isDosen
+    ? [
+        {
+          id: 'oversight',
+          label: 'Review Dosen',
+          icon: ShieldCheck,
+          badge: pendingOversightCount > 0 ? pendingOversightCount : null,
+        },
+        { id: 'history', label: 'Riwayat Kelas', icon: History },
+        { id: 'benchmark', label: 'Kasus M1–M6', icon: Award },
+      ]
+    : [
+        { id: 'presensi', label: 'Presensi', icon: Camera },
+        { id: 'history', label: 'Riwayat Saya', icon: History },
+        { id: 'register', label: 'Daftar Wajah', icon: UserPlus },
+      ];
 
   return (
     <header className="bg-white border-b border-slate-200/80 sticky top-0 z-40 shadow-xs">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
-        <div className="flex items-center justify-between h-15 sm:h-16">
+        <div className="flex items-center justify-between h-14 sm:h-16">
           {/* Logo & App Title */}
           <div
             className="flex items-center space-x-2.5 cursor-pointer group"
-            onClick={() => setActiveTab('presensi')}
+            onClick={() => setActiveTab(isDosen ? 'oversight' : 'presensi')}
           >
             <div className="w-9 h-9 rounded-xl bg-teal-600 flex items-center justify-center text-white shadow-xs">
-              <Camera className="w-4.5 h-4.5" />
+              <Camera className="w-4 h-4" />
             </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <span className="text-base sm:text-lg font-extrabold tracking-tight text-slate-800">
-                  Presen<span className="text-teal-600">SI</span>
-                </span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200/60">
-                  Face AI
-                </span>
-              </div>
-              <p className="text-[10px] text-slate-400 hidden sm:block font-medium">
-                Sistem Presensi Mahasiswa &amp; Human Oversight
-              </p>
-            </div>
+            <span className="text-base sm:text-lg font-extrabold tracking-tight text-slate-800">
+              Presen<span className="text-teal-600">SI</span>
+            </span>
           </div>
 
           {/* Desktop Navigation Tabs (Hidden on small mobile screens since mobile has bottom nav) */}
@@ -70,7 +81,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-teal-600' : 'text-slate-400'}`} />
                   <span>{item.label}</span>
                   {item.badge !== null && item.badge !== undefined && (
-                    <span className="ml-1 px-1.5 py-0.2 text-[9px] font-black rounded-full bg-teal-600 text-white shadow-xs">
+                    <span className="ml-1 px-1.5 py-0.5 text-[9px] font-black rounded-full bg-teal-600 text-white shadow-xs">
                       {item.badge}
                     </span>
                   )}
@@ -79,11 +90,23 @@ export const Navbar: React.FC<NavbarProps> = ({
             })}
           </nav>
 
-          {/* Mobile Right Badge: Compact Semester Badge */}
-          <div className="sm:hidden flex items-center">
-            <span className="text-[10px] font-bold text-teal-700 bg-teal-50 px-2 py-1 rounded-lg border border-teal-200/60">
-              Lab AI Genap
+          {/* Session Cluster: role chip + name + logout */}
+          <div className="flex items-center space-x-2">
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200/60 whitespace-nowrap">
+              {isDosen ? 'Dosen' : 'Mahasiswa'}
             </span>
+            <span className="max-w-[120px] truncate text-xs font-bold text-slate-700" title={sessionName}>
+              {sessionName}
+            </span>
+            <button
+              type="button"
+              onClick={onLogout}
+              aria-label="Keluar"
+              title="Keluar"
+              className="flex items-center justify-center w-8 h-8 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </div>

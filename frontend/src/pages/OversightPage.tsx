@@ -1,19 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import {
-  ShieldAlert,
-  CheckCircle,
-  RefreshCw,
-  Search,
-} from 'lucide-react';
+import { CheckCircle, RefreshCw, Search } from 'lucide-react';
 import { fetchOversightAttendances, resolveOversight } from '../api';
 import { LecturerResolveModal } from '../components/LecturerResolveModal';
 import type { AttendanceRecord } from '../types';
 
 interface OversightPageProps {
+  lecturerName: string;
   onOversightUpdated?: () => void;
 }
 
-export const OversightPage: React.FC<OversightPageProps> = ({ onOversightUpdated }) => {
+export const OversightPage: React.FC<OversightPageProps> = ({
+  lecturerName,
+  onOversightUpdated,
+}) => {
   const [pendingList, setPendingList] = useState<AttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -50,7 +49,7 @@ export const OversightPage: React.FC<OversightPageProps> = ({ onOversightUpdated
         attendance_id: selectedAttendance.id,
         approved,
         lecturer_note: note,
-        lecturer_name: 'Dr. Ir. Dosen Pengampu',
+        lecturer_name: lecturerName,
       });
 
       if (res.success) {
@@ -85,29 +84,44 @@ export const OversightPage: React.FC<OversightPageProps> = ({ onOversightUpdated
   );
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      {/* Title */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <span className="text-[10px] font-bold uppercase tracking-wider text-teal-700 bg-teal-50 px-2.5 py-0.5 rounded-md border border-teal-200/60">
-            Human-in-the-Loop • UU PDP Pasal 34
-          </span>
-          <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight mt-1">
-            Review &amp; Verifikasi Dosen
-          </h1>
-          <p className="text-xs text-slate-500">
-            Peninjauan manual kasus ambang batas (M3, M4, M5) sesuai UU PDP Pasal 34.
+    <div className="space-y-5 max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-800 tracking-tight">
+              Review Dosen
+            </h1>
+            <span className="text-[10px] font-bold bg-teal-600 text-white px-2 py-0.5 rounded-full whitespace-nowrap">
+              {pendingList.length} menunggu
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Kasus ambang batas memerlukan keputusan manusia (UU PDP Pasal 34).
           </p>
         </div>
 
-        <button
-          onClick={loadData}
-          disabled={isLoading}
-          className="flex items-center space-x-1.5 text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 px-3.5 py-2 rounded-xl border border-slate-200 shadow-xs transition self-start sm:self-center cursor-pointer"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-teal-600' : ''}`} />
-          <span>Segarkan Data</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1 sm:flex-none sm:w-56">
+            <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Cari NIM / Nama..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full text-xs bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-teal-600 transition"
+            />
+          </div>
+          <button
+            onClick={loadData}
+            disabled={isLoading}
+            aria-label="Segarkan data"
+            title="Segarkan data"
+            className="flex items-center justify-center text-slate-600 hover:text-slate-800 bg-white hover:bg-slate-50 p-2 rounded-xl border border-slate-200 transition cursor-pointer disabled:opacity-60"
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-teal-600' : ''}`} />
+          </button>
+        </div>
       </div>
 
       {notification && (
@@ -128,38 +142,8 @@ export const OversightPage: React.FC<OversightPageProps> = ({ onOversightUpdated
         </div>
       )}
 
-      {/* Pending Table Card */}
-      <div className="bg-white rounded-3xl border border-slate-100 p-5 sm:p-6 shadow-[0_10px_30px_rgba(0,0,0,0.04)] space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center space-x-2.5">
-            <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center font-bold">
-              <ShieldAlert className="w-4.5 h-4.5 text-teal-600" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-slate-800 flex items-center space-x-2">
-                <span>Antrean Menunggu Verifikasi Dosen</span>
-                <span className="text-xs font-bold bg-teal-600 text-white px-2 py-0.2 rounded-full">
-                  {pendingList.length}
-                </span>
-              </h3>
-              <p className="text-[11px] text-slate-400 font-medium">Kasus membutuhkan peninjauan dan paraf pengesahan dosen</p>
-            </div>
-          </div>
-
-          {/* Search */}
-          <div className="relative w-full sm:w-64">
-            <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Cari NIM / Nama..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-teal-600 focus:bg-white transition"
-            />
-          </div>
-        </div>
-
-        {/* Pending Table */}
+      {/* Pending Table */}
+      <div className="bg-white rounded-3xl border border-slate-100 p-4 sm:p-5 shadow-[0_10px_30px_rgba(0,0,0,0.04)]">
         {isLoading ? (
           <div className="py-12 flex flex-col items-center justify-center text-slate-400 space-y-2">
             <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
@@ -179,10 +163,9 @@ export const OversightPage: React.FC<OversightPageProps> = ({ onOversightUpdated
               <thead className="bg-slate-50 text-slate-500 uppercase text-[10px] font-bold border-b border-slate-100">
                 <tr>
                   <th className="px-4 py-3">Mahasiswa</th>
-                  <th className="px-3 py-3 text-center">Skor Wajah</th>
-                  <th className="px-3 py-3 text-center">Jarak GPS</th>
+                  <th className="px-3 py-3 text-center">Skor</th>
+                  <th className="px-3 py-3 text-center">Jarak</th>
                   <th className="px-3 py-3 text-center">Telat</th>
-                  <th className="px-4 py-3">Indikasi Masalah</th>
                   <th className="px-4 py-3 text-right">Aksi</th>
                 </tr>
               </thead>
@@ -211,10 +194,6 @@ export const OversightPage: React.FC<OversightPageProps> = ({ onOversightUpdated
 
                     <td className="px-3 py-3.5 text-center font-medium text-slate-700">
                       {item.late_minutes}m
-                    </td>
-
-                    <td className="px-4 py-3.5">
-                      <p className="text-[11px] text-slate-500 line-clamp-2 max-w-xs">{item.decision_reason}</p>
                     </td>
 
                     <td className="px-4 py-3.5 text-right">

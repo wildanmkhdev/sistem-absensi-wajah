@@ -1,24 +1,32 @@
 import React from 'react';
-import { CheckCircle2, Clock, User, Sparkles, X, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, ShieldCheck, User, X } from 'lucide-react';
 import type { PresensiResponse } from '../types';
 
 interface AttendanceSuccessModalProps {
   result: PresensiResponse;
   onClose: () => void;
-  registeredPhotoUrl?: string | null;
-  capturedPhotoUrl?: string | null;
 }
+
+const formatTimestamp = (timestamp: string): string => {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return timestamp;
+  return date.toLocaleString('id-ID', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
 
 export const AttendanceSuccessModal: React.FC<AttendanceSuccessModalProps> = ({
   result,
   onClose,
-  registeredPhotoUrl,
-  capturedPhotoUrl,
 }) => {
   const isHadir = result.status === 'HADIR';
   const isTerlambat = result.status === 'TERLAMBAT';
   const isOversight = result.status === 'PERLU_VERIFIKASI_DOSEN';
-
 
   const badgeConfig = isHadir
     ? {
@@ -53,7 +61,6 @@ export const AttendanceSuccessModal: React.FC<AttendanceSuccessModalProps> = ({
       };
 
   const StatusIcon = badgeConfig.icon;
-  const scorePercent = Math.round(result.similarity_score * 100);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
@@ -61,7 +68,9 @@ export const AttendanceSuccessModal: React.FC<AttendanceSuccessModalProps> = ({
         {/* Top Header Banner */}
         <div className={`p-6 border-b flex items-start justify-between ${badgeConfig.bg}`}>
           <div className="flex items-center space-x-3">
-            <div className={`w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center ${badgeConfig.ringColor} ring-4 ring-opacity-20`}>
+            <div
+              className={`w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center ${badgeConfig.ringColor} ring-4 ring-opacity-20`}
+            >
               <StatusIcon className="w-7 h-7" />
             </div>
             <div>
@@ -83,57 +92,16 @@ export const AttendanceSuccessModal: React.FC<AttendanceSuccessModalProps> = ({
         {/* Modal Body */}
         <div className="p-6 space-y-5">
           {/* Student Info Card */}
-          <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-100 flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-full bg-teal-50 text-teal-700 flex items-center justify-center font-bold text-sm">
-                <User className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="font-bold text-slate-800 text-sm">{result.name || 'Mahasiswa'}</h4>
-                <p className="text-xs text-slate-500">NIM: {result.nim} • {result.timestamp}</p>
-              </div>
+          <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-100 flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-full bg-teal-50 text-teal-700 flex items-center justify-center font-bold text-sm shrink-0">
+              <User className="w-5 h-5" />
             </div>
-            <div className="text-right">
-              <span className="text-xs text-slate-400 font-medium">Metode</span>
-              <p className="text-xs font-semibold text-slate-700 flex items-center space-x-1">
-                <Sparkles className="w-3.5 h-3.5 text-teal-600" />
-                <span>Face AI</span>
-              </p>
-            </div>
-          </div>
-
-          {/* Face Comparison Visual */}
-          <div className="grid grid-cols-2 gap-3">
-            {/* Registered Profile Face */}
-            <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100 text-center space-y-2">
-              <span className="text-[11px] font-medium text-slate-500 block">Foto Profil Terdaftar</span>
-              <div className="w-24 h-24 mx-auto rounded-xl overflow-hidden bg-slate-200 border-2 border-white shadow-sm flex items-center justify-center">
-                {registeredPhotoUrl ? (
-                  <img src={registeredPhotoUrl} alt="Foto Profil" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full bg-gradient-to-tr from-indigo-100 to-blue-50 flex items-center justify-center text-indigo-400 font-bold text-xl">
-                    {result.name ? result.name.charAt(0) : 'M'}
-                  </div>
-                )}
-              </div>
-              <span className="text-[10px] text-slate-400 block">Ground Truth KTM</span>
-            </div>
-
-            {/* Captured Selfie */}
-            <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100 text-center space-y-2">
-              <span className="text-[11px] font-medium text-slate-500 block">Swafoto Presensi</span>
-              <div className="w-24 h-24 mx-auto rounded-xl overflow-hidden bg-slate-200 border-2 border-white shadow-sm flex items-center justify-center">
-                {capturedPhotoUrl ? (
-                  <img src={capturedPhotoUrl} alt="Swafoto Presensi" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full bg-gradient-to-tr from-emerald-100 to-teal-50 flex items-center justify-center text-emerald-500 font-bold text-xs p-1">
-                    Swafoto OK
-                  </div>
-                )}
-              </div>
-              <span className="text-[10px] text-emerald-600 font-semibold block">
-                {scorePercent}% Kemiripan
-              </span>
+            <div className="min-w-0">
+              <h4 className="font-bold text-slate-800 text-sm truncate">
+                {result.name || 'Mahasiswa'}
+              </h4>
+              <p className="text-xs text-slate-500">NIM: {result.nim}</p>
+              <p className="text-[11px] text-slate-400">{formatTimestamp(result.timestamp)}</p>
             </div>
           </div>
 
@@ -169,6 +137,13 @@ export const AttendanceSuccessModal: React.FC<AttendanceSuccessModalProps> = ({
             <div className="font-semibold text-slate-700">Analisis Sistem:</div>
             <p className="leading-relaxed text-[11px]">{result.decision_reason}</p>
           </div>
+
+          {result.note && (
+            <div className="bg-amber-50/70 rounded-xl p-3 border border-amber-200/80 text-xs text-amber-800 space-y-1">
+              <div className="font-semibold text-amber-900">Catatan:</div>
+              <p className="leading-relaxed text-[11px]">{result.note}</p>
+            </div>
+          )}
         </div>
 
         {/* Modal Footer */}

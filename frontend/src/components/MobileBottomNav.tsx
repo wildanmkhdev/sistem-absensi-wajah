@@ -1,29 +1,45 @@
 import React from 'react';
-import { Home, Camera, ShieldCheck, Award, History } from 'lucide-react';
+import { Camera, ShieldCheck, Award, History, UserPlus } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import type { Role } from '../auth';
+
+interface NavItem {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  badge?: number | null;
+}
 
 interface MobileBottomNavProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   pendingOversightCount: number;
+  role: Role;
 }
 
 export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   activeTab,
   setActiveTab,
   pendingOversightCount,
+  role,
 }) => {
-  const navItems = [
-    { id: 'presensi', label: 'Beranda', icon: Home },
-    { id: 'camera_action', label: 'Presensi', icon: Camera, isCenterShutter: true },
-    {
-      id: 'oversight',
-      label: 'Review',
-      icon: ShieldCheck,
-      badge: pendingOversightCount > 0 ? pendingOversightCount : null,
-    },
-    { id: 'benchmark', label: 'M1-M6', icon: Award },
-    { id: 'history', label: 'Riwayat', icon: History },
-  ];
+  const navItems: NavItem[] =
+    role === 'dosen'
+      ? [
+          {
+            id: 'oversight',
+            label: 'Review',
+            icon: ShieldCheck,
+            badge: pendingOversightCount > 0 ? pendingOversightCount : null,
+          },
+          { id: 'history', label: 'Riwayat', icon: History },
+          { id: 'benchmark', label: 'Kasus', icon: Award },
+        ]
+      : [
+          { id: 'presensi', label: 'Presensi', icon: Camera },
+          { id: 'history', label: 'Riwayat', icon: History },
+          { id: 'register', label: 'Daftar', icon: UserPlus },
+        ];
 
   return (
     <div className="bg-white/95 backdrop-blur-md border-t border-slate-200/80 shadow-lg px-2 py-1.5 safe-area-bottom">
@@ -31,29 +47,6 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
-
-          if (item.isCenterShutter) {
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => {
-                  setActiveTab('presensi');
-                  // Smoothly scroll to camera section
-                  const el = document.getElementById('camera-capture-viewport');
-                  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }}
-                className="relative -top-4 flex flex-col items-center group cursor-pointer focus:outline-none"
-              >
-                <div className="w-13 h-13 rounded-full bg-teal-600 text-white shadow-md shadow-teal-600/30 flex items-center justify-center transform active:scale-95 transition border-3 border-white">
-                  <Icon className="w-6 h-6 text-white" />
-                </div>
-                <span className="text-[10px] font-bold text-teal-700 mt-0.5">
-                  Presensi
-                </span>
-              </button>
-            );
-          }
 
           return (
             <button
@@ -72,9 +65,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                   </span>
                 )}
               </div>
-              <span className="text-[10px] font-bold mt-1 tracking-tight">
-                {item.label}
-              </span>
+              <span className="text-[10px] font-bold mt-1 tracking-tight">{item.label}</span>
             </button>
           );
         })}

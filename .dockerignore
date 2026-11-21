@@ -1,0 +1,7 @@
+.git
+frontend/node_modules
+frontend/dist
+backend/attendance.db
+data/
+knowledge/
+.env

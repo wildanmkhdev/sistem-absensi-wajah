@@ -8,7 +8,6 @@ from app.ml.engine import (
     compute_similarity,
     load_image,
     extract_features_numpy,
-    generate_benchmark_embedding,
 )
 
 from app.ml.benchmark import (
@@ -24,7 +23,6 @@ __all__ = [
     "compute_similarity",
     "load_image",
     "extract_features_numpy",
-    "generate_benchmark_embedding",
     "BENCHMARK_CASES",
     "evaluate_initial_rule",
     "evaluate_uu_pdp_rule",

@@ -1,39 +1,73 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Navbar } from './components/Navbar';
 import { MobileFrame } from './components/MobileFrame';
+import { LoginPage } from './pages/LoginPage';
 import { PresensiPage } from './pages/PresensiPage';
 import { OversightPage } from './pages/OversightPage';
 import { BenchmarkPage } from './pages/BenchmarkPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { fetchOversightAttendances } from './api';
-import { ShieldCheck } from 'lucide-react';
+import { clearSession, readSession, writeSession } from './auth';
+import type { Role, Session } from './auth';
+
+const ALLOWED_TABS: Record<Role, string[]> = {
+  mahasiswa: ['presensi', 'history', 'register'],
+  dosen: ['oversight', 'history', 'benchmark'],
+};
 
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<string>('presensi');
+  const [session, setSession] = useState<Session | null>(() => readSession());
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    const stored = readSession();
+    return stored ? ALLOWED_TABS[stored.role][0] : 'presensi';
+  });
   const [pendingOversightCount, setPendingOversightCount] = useState<number>(0);
 
-  const refreshOversightCount = async () => {
+  const refreshOversightCount = useCallback(async () => {
     try {
       const pending = await fetchOversightAttendances();
       setPendingOversightCount(pending.length);
     } catch (e) {
       console.warn('Could not update pending oversight count', e);
     }
-  };
+  }, []);
 
+  // Hanya dosen yang perlu antrean review; mahasiswa tidak menyentuh endpoint ini.
   useEffect(() => {
+    if (session?.role !== 'dosen') {
+      setPendingOversightCount(0);
+      return;
+    }
+
     refreshOversightCount();
     const timer = setInterval(refreshOversightCount, 30000);
     return () => clearInterval(timer);
-  }, []);
+  }, [session?.role, refreshOversightCount]);
 
-  const handleSimulateCase = (caseId: 'M1' | 'M2' | 'M3' | 'M4' | 'M5' | 'M6') => {
-    setActiveTab('presensi');
-    setTimeout(() => {
-      console.log('Simulating case', caseId);
-    }, 50);
+  // Jaga agar tab aktif selalu milik role yang sedang login.
+  useEffect(() => {
+    if (!session) return;
+    if (!ALLOWED_TABS[session.role].includes(activeTab)) {
+      setActiveTab(ALLOWED_TABS[session.role][0]);
+    }
+  }, [session, activeTab]);
+
+  const handleLogin = (nextSession: Session) => {
+    writeSession(nextSession);
+    setSession(nextSession);
+    setActiveTab(nextSession.role === 'dosen' ? 'oversight' : 'presensi');
   };
+
+  const handleLogout = () => {
+    clearSession();
+    setSession(null);
+    setActiveTab('presensi');
+  };
+
+  if (!session) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-800 flex flex-col font-sans selection:bg-teal-100 selection:text-teal-900">
@@ -42,6 +76,9 @@ export const App: React.FC = () => {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         pendingOversightCount={pendingOversightCount}
+        role={session.role}
+        sessionName={session.name}
+        onLogout={handleLogout}
       />
 
       {/* Main Content Area */}
@@ -50,31 +87,30 @@ export const App: React.FC = () => {
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           pendingOversightCount={pendingOversightCount}
+          role={session.role}
         >
-          {activeTab === 'presensi' && (
-            <PresensiPage
-              onGoToOversight={() => setActiveTab('oversight')}
-              onPresensiSuccess={refreshOversightCount}
-            />
-          )}
+          {activeTab === 'presensi' && <PresensiPage student={session} />}
 
           {activeTab === 'oversight' && (
-            <OversightPage onOversightUpdated={refreshOversightCount} />
+            <OversightPage
+              lecturerName={session.name}
+              onOversightUpdated={refreshOversightCount}
+            />
           )}
 
           {activeTab === 'benchmark' && (
-            <BenchmarkPage onSimulateInPresensi={handleSimulateCase} />
+            <BenchmarkPage onAttendanceCreated={refreshOversightCount} />
           )}
 
-          {activeTab === 'history' && <HistoryPage />}
+          {activeTab === 'history' && (
+            <HistoryPage
+              role={session.role}
+              nim={session.role === 'mahasiswa' ? session.nim : undefined}
+            />
+          )}
 
           {activeTab === 'register' && (
-            <RegisterPage
-              onRegisteredSuccess={() => {
-                setActiveTab('presensi');
-                refreshOversightCount();
-              }}
-            />
+            <RegisterPage onRegisteredSuccess={() => setActiveTab('presensi')} />
           )}
         </MobileFrame>
       </main>
@@ -82,23 +118,10 @@ export const App: React.FC = () => {
       {/* Clean Desktop Footer */}
       <footer className="hidden sm:block bg-white border-t border-slate-200/80 py-5 text-xs text-slate-500 mt-8">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <div className="w-5 h-5 rounded-md bg-teal-50 text-teal-700 flex items-center justify-center font-bold">
-              <ShieldCheck className="w-3.5 h-3.5" />
-            </div>
-            <span className="font-bold text-slate-700">
-              Presensi Wajah Cerdas &amp; Human Oversight
-            </span>
-            <span className="text-slate-300">•</span>
-            <span className="text-slate-400">Modul 13 Kelompok 6</span>
-          </div>
-
-          <div className="flex items-center space-x-4 text-slate-400">
-            <span className="flex items-center space-x-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-              <span>Neon PostgreSQL Terhubung</span>
-            </span>
-          </div>
+          <span className="font-bold text-slate-700">
+            PresenSI • Sistem Presensi Wajah &amp; Human Oversight
+          </span>
+          <span className="text-slate-400">UU PDP No. 27/2022</span>
         </div>
       </footer>
     </div>

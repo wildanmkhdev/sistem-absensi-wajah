@@ -1,17 +1,16 @@
 """
-Modul Machine Learning: Face Embedding & Cosine Similarity Engine
+Modul Machine Learning: Face Embedding & Chi-Square Similarity Engine
 Sistem Presensi Wajah Berbasis AI (Studi Kasus Kelompok 6 & UU PDP)
 
-Engine ini mengekstraksi 512-D face embedding vector dan menghitung
-kemiripan wajah menggunakan normalisasi Cosine Similarity:
-cos(theta) = (u . v) / (||u|| * ||v||)
+Engine ini mengekstraksi 512-D face embedding vector.
+Kemiripan dihitung dengan Chi-Square distance antar distribusi histogram 512-D (lihat compute_similarity).
 """
 
 import base64
 import io
 import os
 import logging
-from typing import Union, Optional
+from typing import Union
 import numpy as np
 from PIL import Image
 
@@ -283,28 +282,3 @@ def compute_similarity(emb1: np.ndarray, emb2: np.ndarray) -> float:
     similarity = float(np.exp(-8.0 * chi2))
 
     return float(np.clip(similarity, 0.0, 1.0))
-
-
-def generate_benchmark_embedding(target_score_with_base: float, base_embedding: Optional[np.ndarray] = None) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Utility pembantu untuk keperluan benchmark dan simulasi:
-    Menghasilkan sepasang embedding (base_emb, target_emb) yang memiliki
-    kemiripan eksak mendekati target_score_with_base.
-    """
-    if base_embedding is None:
-        base_raw = _RNG.randn(512).astype(np.float32)
-        base_emb = base_raw / np.linalg.norm(base_raw)
-    else:
-        base_emb = base_embedding / np.linalg.norm(base_embedding)
-
-    # Buat orthogonal vector terhadap base_emb
-    noise = _RNG.randn(512).astype(np.float32)
-    ortho = noise - np.dot(base_emb, noise) * base_emb
-    ortho = ortho / np.linalg.norm(ortho)
-
-    target_score = float(np.clip(target_score_with_base, -1.0, 1.0))
-    # v = target_score * base + sqrt(1 - target_score^2) * ortho
-    target_emb = target_score * base_emb + np.sqrt(max(0.0, 1.0 - target_score**2)) * ortho
-    target_emb = target_emb / np.linalg.norm(target_emb)
-
-    return base_emb.astype(np.float32), target_emb.astype(np.float32)

@@ -1,15 +1,11 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Camera, Upload, AlertCircle, Check, X, SwitchCamera, Sparkles, Image as ImageIcon } from 'lucide-react';
-import { SAMPLE_SELFIES } from '../assets/sampleFaces';
+import { Camera, Upload, AlertCircle, Check, SwitchCamera, Sparkles } from 'lucide-react';
 
 interface CameraCaptureProps {
   onCapture: (base64Image: string) => void;
   capturedImage: string | null;
   onClearCapture: () => void;
   disabled?: boolean;
-  selectedCaseId?: string;
-  onSelectCase?: (caseId: string) => void;
-  onClose?: () => void;
 }
 
 export const CameraCapture: React.FC<CameraCaptureProps> = ({
@@ -17,9 +13,6 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
   capturedImage,
   onClearCapture,
   disabled = false,
-  selectedCaseId = 'CUSTOM',
-  onSelectCase,
-  onClose,
 }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -156,35 +149,17 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
     reader.readAsDataURL(file);
   };
 
-  const handleUseSamplePhoto = (caseId: string) => {
-    const sample = SAMPLE_SELFIES[caseId] || SAMPLE_SELFIES['M1'];
-    if (sample) {
-      onCapture(sample);
-    }
-  };
-
   return (
-    <div id="camera-capture-viewport" className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden flex flex-col">
+    <div
+      id="camera-capture-viewport"
+      className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden flex flex-col"
+    >
       {/* Top Header */}
-      <div className="p-3.5 sm:p-4 flex items-center justify-between border-b border-slate-100">
-        <div>
-          <h3 className="text-sm font-bold text-slate-800">
-            Ambil Foto Selfie
-          </h3>
-          <p className="text-[11px] text-slate-400 font-medium">
-            Posisikan wajah Anda tepat di dalam bingkai panduan
-          </p>
-        </div>
-
-        {onClose && (
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition cursor-pointer"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        )}
+      <div className="p-3.5 sm:p-4 border-b border-slate-100">
+        <h3 className="text-sm font-bold text-slate-800">Ambil Foto Selfie</h3>
+        <p className="text-[11px] text-slate-400 font-medium">
+          Posisikan wajah Anda tepat di dalam bingkai panduan
+        </p>
       </div>
 
       {/* Camera Viewfinder with Cyan/Teal Face Brackets */}
@@ -229,11 +204,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
         {/* View: Captured Image Display */}
         {capturedImage && (
           <div className="relative w-full h-full">
-            <img
-              src={capturedImage}
-              alt="Hasil Swafoto"
-              className="w-full h-full object-cover"
-            />
+            <img src={capturedImage} alt="Hasil Swafoto" className="w-full h-full object-cover" />
             <div className="absolute top-2.5 left-2.5 bg-emerald-600 text-white text-[11px] font-bold px-2.5 py-0.5 rounded-md shadow-xs flex items-center space-x-1">
               <Check className="w-3.5 h-3.5" />
               <span>Foto Siap</span>
@@ -267,7 +238,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
                 {isInitializing ? 'Memulai webcam...' : cameraError || 'Webcam belum aktif.'}
               </p>
               <p className="text-[10px] text-slate-400 mt-0.5">
-                Gunakan tombol Upload atau pilih sampel KTM di bawah.
+                Gunakan tombol Upload di bawah untuk mengunggah foto wajah.
               </p>
             </div>
             <button
@@ -290,8 +261,8 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
         />
       </div>
 
-      {/* Shutter Controls Bar - Solid Flat Pastel Teal (No Orange, No Gradient) */}
-      <div className="p-3.5 sm:p-4 bg-white space-y-3">
+      {/* Shutter Controls Bar */}
+      <div className="p-3.5 sm:p-4 bg-white">
         <div className="flex items-center justify-around py-1">
           <button
             type="button"
@@ -303,7 +274,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
             <SwitchCamera className="w-4.5 h-4.5 text-slate-600" />
           </button>
 
-          {/* Center Shutter Button: Solid Flat Teal */}
+          {/* Center Shutter Button */}
           <button
             type="button"
             onClick={takeSnapshot}
@@ -327,44 +298,6 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
           >
             <Upload className="w-4.5 h-4.5 text-slate-600" />
           </button>
-        </div>
-
-        {/* Compact Segmented Control for Modul 13 Cases M1 to M6 */}
-        <div className="pt-2 border-t border-slate-100 space-y-1.5">
-          <div className="flex items-center justify-between text-[11px] font-bold text-slate-400">
-            <span className="flex items-center space-x-1">
-              <Sparkles className="w-3 h-3 text-teal-600" />
-              <span>Simulasi Kasus Modul 13:</span>
-            </span>
-            <button
-              type="button"
-              onClick={() => handleUseSamplePhoto(selectedCaseId)}
-              className="text-teal-700 hover:text-teal-800 font-bold lowercase flex items-center space-x-1 cursor-pointer text-[10px]"
-            >
-              <ImageIcon className="w-3 h-3" />
-              <span>Sampel ({selectedCaseId})</span>
-            </button>
-          </div>
-
-          <div className="grid grid-cols-6 gap-1">
-            {['M1', 'M2', 'M3', 'M4', 'M5', 'M6'].map((caseId) => (
-              <button
-                key={caseId}
-                type="button"
-                onClick={() => {
-                  if (onSelectCase) onSelectCase(caseId);
-                  handleUseSamplePhoto(caseId);
-                }}
-                className={`py-1 text-xs font-bold rounded-lg border transition cursor-pointer text-center ${
-                  selectedCaseId === caseId
-                    ? 'bg-teal-600 text-white border-teal-600 shadow-xs'
-                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-teal-50 hover:border-teal-200 hover:text-teal-700'
-                }`}
-              >
-                {caseId}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
     </div>
