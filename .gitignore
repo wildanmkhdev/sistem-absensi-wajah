@@ -11,3 +11,6 @@ backend/static/
 *.pyo
 .pytest_cache/
 .env
+.vercel
+.env*
+.opencode/

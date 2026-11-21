@@ -79,6 +79,11 @@ def init_db() -> None:
         _init_sqlite_tables()
 
 
+def is_using_neon() -> bool:
+    """True jika backend database aktif adalah Neon PostgreSQL."""
+    return _USE_NEON
+
+
 def _init_neon_tables() -> None:
     conn = _get_neon_conn()
     cur = conn.cursor()

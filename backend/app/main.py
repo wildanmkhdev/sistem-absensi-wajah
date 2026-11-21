@@ -29,6 +29,7 @@ from app.core.rules import (
 )
 from app.db.database import (
     init_db,
+    is_using_neon,
     get_student,
     create_or_update_student,
     get_all_students,
@@ -62,7 +63,8 @@ from contextlib import asynccontextmanager
 @asynccontextmanager
 async def lifespan(app_instance: FastAPI):
     init_db()
-    logger.info("Database SQLite berhasil diinisialisasi pada startup.")
+    backend = "Neon PostgreSQL" if is_using_neon() else "SQLite"
+    logger.info("Database %s berhasil diinisialisasi pada startup.", backend)
     yield
 
 # ==============================================================================

@@ -56,5 +56,41 @@ docker run -p 7860:7860 presensi-wajah
 
 ## Environment
 
-- `DATABASE_URL` — opsional. Connection string PostgreSQL (Neon). Jika kosong, backend memakai SQLite lokal `backend/attendance.db`; pada Hugging Face Space data SQLite hilang saat restart/rebuild, jadi set secret `DATABASE_URL` untuk data persisten.
-- `VITE_API_URL` — opsional, hanya saat build frontend. Default: origin yang sama pada port 7860, `http://localhost:7860` saat dev.
+- `DATABASE_URL` — connection string PostgreSQL (Neon). Jika kosong, backend memakai SQLite lokal `backend/attendance.db`.
+- `DB_PATH` — lokasi file SQLite fallback. Wajib diarahkan ke direktori writable (`/tmp/attendance.db`) saat runtime read-only.
+- `VITE_API_URL` — opsional, hanya saat build frontend. Default: origin yang sama.
+
+## Deployment
+
+### Vercel (production)
+
+Production: <https://sistem-absensi-wajah.vercel.app>
+
+Repo ini dideploy sebagai satu project Vercel dengan **Services**:
+
+| Service | Root | Peran |
+| --- | --- | --- |
+| `web` | `frontend/` | Vite + React, disajikan dari CDN |
+| `api` | `backend/` | FastAPI (Vercel Functions), entrypoint `app/main.py` |
+
+`vercel.json` mengarahkan `/api/*` dan `/health` ke service `api`, sisanya ke `web`.
+`.vercelignore` mengecualikan `Dockerfile`, `backend/venv`, database lokal, dan `api/`
+agar Vercel tidak salah mendeteksi project sebagai container service.
+
+Environment variable yang wajib diset di Vercel (Production + Preview):
+
+- `DATABASE_URL` — Secret, connection string Neon (gunakan host `-pooler`).
+- `DB_PATH` — `/tmp/attendance.db` (fallback SQLite; `/tmp` satu-satunya path writable).
+
+Deploy dari CLI:
+
+```bash
+vercel link
+vercel deploy --prod
+```
+
+### Hugging Face Spaces (Docker)
+
+`Dockerfile` di root membangun frontend lalu menyajikannya lewat FastAPI pada port `7860`.
+Set secret `DATABASE_URL` di Space Settings; tanpa itu data SQLite hilang setiap restart.
+
