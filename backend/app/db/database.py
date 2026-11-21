@@ -28,6 +28,22 @@ DB_PATH: str = os.path.abspath(
 _USE_NEON: bool = False
 
 
+def _seed_benchmark_enabled() -> bool:
+    """
+    Seed mahasiswa benchmark M1-M6 hanya bila diminta eksplisit.
+
+    Default mati agar database yang sudah dikosongkan tetap kosong setelah
+    restart (tanpa ini, setiap cold start akan menanam ulang 6 mahasiswa).
+    Set `SEED_BENCHMARK_STUDENTS=1` untuk instalasi demo baru.
+    """
+    return os.environ.get("SEED_BENCHMARK_STUDENTS", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
+
 def _init_neon_driver() -> bool:
     """Coba import psycopg2 dan connect ke Neon. Return True jika berhasil."""
     global _USE_NEON
@@ -292,10 +308,10 @@ def _init_neon_tables() -> None:
         """)
         conn.commit()
 
-        # Seed M1-M6 jika tabel students masih kosong
+        # Seed M1-M6 hanya bila diminta eksplisit (SEED_BENCHMARK_STUDENTS=1)
         cur.execute("SELECT COUNT(*) FROM students;")
         count = cur.fetchone()[0]
-        if count == 0:
+        if count == 0 and _seed_benchmark_enabled():
             logger.info("Seeding data mahasiswa benchmark M1-M6 ke Neon...")
             now_str = datetime.now().isoformat()
             for case in BENCHMARK_CASES:
@@ -369,7 +385,7 @@ def _init_sqlite_tables() -> None:
 
     cursor.execute("SELECT COUNT(*) FROM students;")
     count = cursor.fetchone()[0]
-    if count == 0:
+    if count == 0 and _seed_benchmark_enabled():
         now_str = datetime.now().isoformat()
         for case in BENCHMARK_CASES:
             cursor.execute(

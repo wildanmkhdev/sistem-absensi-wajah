@@ -89,6 +89,7 @@ def setup_database(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DATABASE_URL", "")
     monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "attendance_test.db"))
     monkeypatch.setattr(db, "_USE_NEON", False)
+    monkeypatch.setenv("SEED_BENCHMARK_STUDENTS", "1")
     db.init_db()
     yield
 
