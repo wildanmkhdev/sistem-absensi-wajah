@@ -7,7 +7,7 @@ import { OversightPage } from './pages/OversightPage';
 import { BenchmarkPage } from './pages/BenchmarkPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { RegisterPage } from './pages/RegisterPage';
-import { fetchOversightAttendances } from './api';
+import { fetchMe, fetchOversightAttendances, setAuthToken } from './api';
 import { clearSession, readSession, writeSession } from './auth';
 import type { Role, Session } from './auth';
 
@@ -23,6 +23,54 @@ export const App: React.FC = () => {
     return stored ? ALLOWED_TABS[stored.role][0] : 'presensi';
   });
   const [pendingOversightCount, setPendingOversightCount] = useState<number>(0);
+
+  const handleLogout = useCallback(() => {
+    clearSession();
+    setAuthToken(null);
+    setSession(null);
+    setActiveTab('presensi');
+  }, []);
+
+  // Pasang token tersimpan sekali di awal agar request pertama sudah terautentikasi.
+  useEffect(() => {
+    const stored = readSession();
+    if (stored) setAuthToken(stored.token);
+  }, []);
+
+  // Validasi sesi ke server: token kedaluwarsa/dicabut langsung memaksa logout.
+  useEffect(() => {
+    if (!session) return;
+    let active = true;
+
+    setAuthToken(session.token);
+    fetchMe()
+      .then((user) => {
+        if (!active) return;
+        const refreshed: Session = {
+          role: user.role,
+          nim: user.nim ?? '',
+          name: user.name,
+          username: user.username,
+          token: session.token,
+        };
+        writeSession(refreshed);
+        setSession(refreshed);
+      })
+      .catch(() => {
+        if (active) handleLogout();
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [session?.token, handleLogout]);
+
+  // Setiap respons 401 dari API memicu event ini.
+  useEffect(() => {
+    const onUnauthorized = () => handleLogout();
+    window.addEventListener('presensi:unauthorized', onUnauthorized);
+    return () => window.removeEventListener('presensi:unauthorized', onUnauthorized);
+  }, [handleLogout]);
 
   const refreshOversightCount = useCallback(async () => {
     try {
@@ -55,14 +103,9 @@ export const App: React.FC = () => {
 
   const handleLogin = (nextSession: Session) => {
     writeSession(nextSession);
+    setAuthToken(nextSession.token);
     setSession(nextSession);
     setActiveTab(nextSession.role === 'dosen' ? 'oversight' : 'presensi');
-  };
-
-  const handleLogout = () => {
-    clearSession();
-    setSession(null);
-    setActiveTab('presensi');
   };
 
   if (!session) {

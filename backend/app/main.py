@@ -4,7 +4,7 @@ import logging
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import FastAPI, HTTPException, Request, status, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -39,6 +39,14 @@ from app.db.database import (
     resolve_oversight,
     get_all_attendances,
     get_attendance_stats,
+    get_user_by_username,
+)
+from app.auth import (
+    create_token,
+    verify_password,
+    get_current_user,
+    require_dosen,
+    require_mahasiswa,
 )
 
 # Optional ML engine import (graceful fallback if model / dependencies need it)
@@ -114,6 +122,36 @@ class ResolveApiRequest(BaseModel):
     resolved_by: Optional[str] = None
     lecturer_name: Optional[str] = None
 
+class LoginApiRequest(BaseModel):
+    username: str = Field(..., min_length=1, description="Username akun")
+    password: str = Field(..., min_length=1, description="Password akun")
+
+# Throttle login sederhana (per proses): batasi percobaan gagal per username.
+_LOGIN_MAX_ATTEMPTS = int(os.environ.get("AUTH_LOGIN_MAX_ATTEMPTS", "8"))
+_LOGIN_WINDOW_SECONDS = int(os.environ.get("AUTH_LOGIN_WINDOW_SECONDS", "300"))
+_login_failures: Dict[str, List[float]] = {}
+
+
+def _login_throttle_check(username: str) -> None:
+    """Tolak login sementara bila percobaan gagal melewati batas."""
+    now = datetime.now().timestamp()
+    attempts = [t for t in _login_failures.get(username, []) if now - t < _LOGIN_WINDOW_SECONDS]
+    _login_failures[username] = attempts
+    if len(attempts) >= _LOGIN_MAX_ATTEMPTS:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Terlalu banyak percobaan gagal. Coba lagi dalam beberapa menit.",
+        )
+
+
+def _login_record_failure(username: str) -> None:
+    now = datetime.now().timestamp()
+    _login_failures.setdefault(username, []).append(now)
+
+
+def _login_clear_failures(username: str) -> None:
+    _login_failures.pop(username, None)
+
 
 # Helper formatter for Attendance record
 def _format_attendance(rec: Dict[str, Any]) -> Dict[str, Any]:
@@ -142,6 +180,51 @@ def health_check():
     }
 
 
+@app.post("/api/auth/login")
+def auth_login(req: LoginApiRequest):
+    """
+    Menukar username/password dengan token sesi Bearer.
+
+    Password diverifikasi terhadap hash PBKDF2 tersimpan. Pesan error dibuat
+    seragam agar tidak membocorkan username mana yang valid.
+    """
+    username = req.username.strip()
+    _login_throttle_check(username)
+
+    user = get_user_by_username(username)
+    if not user or not verify_password(req.password, user.get("password_hash", "")):
+        _login_record_failure(username)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Username atau password salah.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    _login_clear_failures(username)
+    token = create_token(user)
+    logger.info("Login berhasil: %s (%s)", user["username"], user["role"])
+    return {
+        "token": token,
+        "user": {
+            "username": user["username"],
+            "role": user["role"],
+            "nim": user.get("nim"),
+            "name": user["name"],
+        },
+    }
+
+
+@app.get("/api/auth/me")
+def auth_me(user: Dict[str, Any] = Depends(get_current_user)):
+    """Mengembalikan identitas pemilik token yang sedang aktif."""
+    return {
+        "username": user["sub"],
+        "role": user["role"],
+        "nim": user.get("nim"),
+        "name": user["name"],
+    }
+
+
 @app.get("/api/classroom")
 def get_classroom_info():
     """Mengambil koordinat acuan dan batas radius ruang kelas resmi."""
@@ -154,16 +237,21 @@ def get_classroom_info():
 
 
 @app.get("/api/students")
-def list_students():
+def list_students(user: Dict[str, Any] = Depends(get_current_user)):
     """Mengambil daftar seluruh mahasiswa yang terdaftar."""
     return get_all_students()
 
 
 @app.post("/api/register")
-def register_student(req: RegisterRequest):
+def register_student(req: RegisterRequest, user: Dict[str, Any] = Depends(get_current_user)):
     """
     Mendaftarkan profil mahasiswa dan mengekstrak vektor biometrik wajah 512-D.
     """
+    if user["role"] == "mahasiswa" and user.get("nim") and req.nim != user["nim"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Mahasiswa hanya dapat mendaftarkan wajahnya sendiri.",
+        )
     if not req.face_image:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -204,19 +292,36 @@ def register_student(req: RegisterRequest):
 
 
 @app.post("/api/presensi")
-def submit_presensi(req: PresensiApiRequest):
+def submit_presensi(req: PresensiApiRequest, user: Dict[str, Any] = Depends(get_current_user)):
     """
     Memproses swafoto presensi mahasiswa:
     1. Menghitung jarak GPS ke ruang kelas dengan Haversine
     2. Menghitung kemiripan wajah biometrik (Cosine Similarity 512-D)
     3. Mengevaluasi Rancangan Awal vs Rancangan UU PDP (Human Oversight Pasal 34)
     4. Menyimpan rekaman kehadiran ke database
+
+    Identitas diambil dari token sesi untuk mahasiswa, sehingga NIM tidak dapat
+    dipalsukan lewat body request. Simulasi benchmark hanya untuk dosen.
     """
     # 1. Cari data mahasiswa atau daftarkan jika belum ada
     import numpy as np
     from app.db.database import get_all_students_with_embeddings
 
     sim_case = req.simulated_case.upper() if req.simulated_case else None
+    if sim_case and user["role"] != "dosen":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Simulasi benchmark hanya dapat dijalankan oleh dosen.",
+        )
+    if user["role"] == "mahasiswa":
+        session_nim = user.get("nim")
+        if not session_nim:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Akun mahasiswa tidak terhubung ke NIM.",
+            )
+        req.nim = session_nim
+
     case_def = next((c for c in BENCHMARK_CASES if c["id"] == sim_case), None)
 
     # Gerbang fail-closed: presensi non-simulasi wajib menyertakan bukti wajah dan lokasi.
@@ -368,7 +473,7 @@ def submit_presensi(req: PresensiApiRequest):
 
 
 @app.get("/api/oversight")
-def get_oversight_list():
+def get_oversight_list(user: Dict[str, Any] = Depends(require_dosen)):
     """
     Mengambil daftar presensi mahasiswa yang tertahan pada status PERLU_VERIFIKASI_DOSEN.
     Menunggu keputusan verifikasi manual dosen pengampu (Human Oversight).
@@ -378,13 +483,15 @@ def get_oversight_list():
 
 
 @app.post("/api/oversight/resolve")
-def resolve_oversight_case(req: ResolveApiRequest):
+def resolve_oversight_case(req: ResolveApiRequest, user: Dict[str, Any] = Depends(require_dosen)):
     """
     Menangani keputusan intervensi manusia (Dosen Pengampu):
     - approved = True -> Mengesahkan kehadiran mahasiswa (HADIR / TERLAMBAT)
     - approved = False -> Menolak presensi (TIDAK_SAH)
+
+    `resolved_by` selalu diambil dari identitas token, bukan dari body.
     """
-    lecturer = req.resolved_by or req.lecturer_name or "Dosen Pengampu"
+    lecturer = user["name"] or req.resolved_by or req.lecturer_name or "Dosen Pengampu"
     resolved_rec = resolve_oversight(
         attendance_id=req.attendance_id,
         approved=req.approved,
@@ -497,15 +604,17 @@ def get_benchmark_summary_data():
 
 
 @app.get("/api/attendances")
-def list_attendances(limit: int = 100):
-    """Mengambil riwayat rekaman seluruh presensi mahasiswa."""
+def list_attendances(limit: int = 100, user: Dict[str, Any] = Depends(get_current_user)):
+    """Mengambil riwayat rekaman presensi. Mahasiswa hanya melihat miliknya sendiri."""
     records = get_all_attendances(limit=limit)
+    if user["role"] == "mahasiswa":
+        records = [r for r in records if r.get("nim") == user.get("nim")]
     return [_format_attendance(r) for r in records]
 
 
 @app.get("/api/stats")
-def get_stats():
-    """Mengambil ringkasan statistik kehadiran."""
+def get_stats(user: Dict[str, Any] = Depends(require_dosen)):
+    """Mengambil ringkasan statistik kehadiran (khusus dosen)."""
     return get_attendance_stats()
 
 # ==============================================================================

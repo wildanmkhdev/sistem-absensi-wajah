@@ -1,6 +1,8 @@
 // API Client & Layanan Data Presensi Wajah
 // Satu pintu data: seluruh permintaan melewati FastAPI. Tidak ada akses database dari browser.
 import { API_BASE_URL } from './config';
+import { clearSession } from './auth';
+import type { Session } from './auth';
 import type {
   AttendanceRecord,
   BenchmarkCase,
@@ -10,13 +12,84 @@ import type {
   Student,
 } from './types';
 
+export interface AuthUser {
+  username: string;
+  role: 'dosen' | 'mahasiswa';
+  nim: string | null;
+  name: string;
+}
+
+let authToken: string | null = null;
+
+export function setAuthToken(token: string | null): void {
+  authToken = token;
+}
+
+export function getAuthToken(): string | null {
+  return authToken;
+}
+
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, init);
+  const headers = new Headers(init?.headers);
+  if (authToken) headers.set('Authorization', `Bearer ${authToken}`);
+
+  const res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+
+  // Sesi kedaluwarsa/dicabut: bersihkan penyimpanan dan beri tahu aplikasi.
+  if (res.status === 401 && path !== '/api/auth/login') {
+    clearSession();
+    setAuthToken(null);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('presensi:unauthorized'));
+    }
+  }
+
   if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(detail || `Permintaan ${path} gagal (HTTP ${res.status}).`);
+    const raw = await res.text().catch(() => '');
+    let detail = raw;
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && typeof (parsed as { detail?: unknown }).detail === 'string') {
+        detail = (parsed as { detail: string }).detail;
+      }
+    } catch {
+      // Respons bukan JSON: pakai teks mentah.
+    }
+    throw new ApiError(detail || `Permintaan ${path} gagal (HTTP ${res.status}).`, res.status);
   }
   return (await res.json()) as T;
+}
+
+/** Tukar username/password menjadi token sesi. */
+export async function login(username: string, password: string): Promise<Session> {
+  const json = await request<{ token: string; user: AuthUser }>('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  });
+  setAuthToken(json.token);
+  return {
+    role: json.user.role,
+    nim: json.user.nim ?? '',
+    name: json.user.name,
+    username: json.user.username,
+    token: json.token,
+  };
+}
+
+/** Validasi token tersimpan dan ambil identitas terbaru dari server. */
+export async function fetchMe(): Promise<AuthUser> {
+  return request<AuthUser>('/api/auth/me');
 }
 
 export const BENCHMARK_CASES: BenchmarkCase[] = [
@@ -126,7 +199,8 @@ export const DEFAULT_STUDENTS: Student[] = [
 export async function fetchStudents(): Promise<Student[]> {
   try {
     return await request<Student[]>('/api/students');
-  } catch {
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) throw error;
     return DEFAULT_STUDENTS;
   }
 }
@@ -134,7 +208,8 @@ export async function fetchStudents(): Promise<Student[]> {
 export async function fetchBenchmark(): Promise<BenchmarkCase[]> {
   try {
     return await request<BenchmarkCase[]>('/api/benchmark');
-  } catch {
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) throw error;
     return BENCHMARK_CASES;
   }
 }

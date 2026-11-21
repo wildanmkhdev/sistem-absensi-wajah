@@ -16,6 +16,39 @@ import app.db.database as db
 
 client = TestClient(app)
 
+
+class _AuthedClient(TestClient):
+    """TestClient yang otomatis menyisipkan token Bearer sesuai role."""
+
+    _CREDENTIALS = {
+        "dosen": ("dosen", "dosen123"),
+        "mahasiswa": ("mahasiswa", "mhs123"),
+    }
+
+    def __init__(self, application, role: str = "dosen"):
+        super().__init__(application)
+        self._role = role
+        self._token: str | None = None
+
+    def _auth_header(self) -> str:
+        if self._token is None:
+            username, password = self._CREDENTIALS[self._role]
+            response = super().request(
+                "POST", "/api/auth/login", json={"username": username, "password": password}
+            )
+            assert response.status_code == 200, response.text
+            self._token = response.json()["token"]
+        return f"Bearer {self._token}"
+
+    def request(self, method, url, **kwargs):  # type: ignore[override]
+        headers = dict(kwargs.pop("headers", None) or {})
+        if url != "/api/auth/login":
+            headers.setdefault("Authorization", self._auth_header())
+        return super().request(method, url, headers=headers, **kwargs)
+
+
+client = _AuthedClient(app)
+
 DATA_DIR = os.path.join(BASE_DIR, "..", "data")
 
 

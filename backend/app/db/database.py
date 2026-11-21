@@ -78,10 +78,161 @@ def init_db() -> None:
     else:
         _init_sqlite_tables()
 
+    try:
+        seed_default_users()
+    except Exception as exc:  # seeding akun awal tidak boleh menggagalkan startup
+        logger.warning("Gagal menyiapkan akun awal: %s", exc)
+
 
 def is_using_neon() -> bool:
     """True jika backend database aktif adalah Neon PostgreSQL."""
     return _USE_NEON
+
+
+# ==============================================================================
+# USERS (AUTENTIKASI)
+# ==============================================================================
+def get_user_by_username(username: str) -> Optional[Dict[str, Any]]:
+    """Ambil satu user berdasarkan username."""
+    if _USE_NEON:
+        conn = _get_neon_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "SELECT username, password_hash, role, nim, name, created_at::TEXT "
+                "FROM users WHERE username = %s",
+                (username,),
+            )
+            row = cur.fetchone()
+        finally:
+            conn.close()
+    else:
+        conn = _get_sqlite_conn()
+        try:
+            cur = conn.execute(
+                "SELECT username, password_hash, role, nim, name, created_at "
+                "FROM users WHERE username = ?",
+                (username,),
+            )
+            row = cur.fetchone()
+        finally:
+            conn.close()
+
+    if not row:
+        return None
+    return {
+        "username": row[0],
+        "password_hash": row[1],
+        "role": row[2],
+        "nim": row[3],
+        "name": row[4],
+        "created_at": str(row[5]),
+    }
+
+
+def upsert_user(
+    username: str,
+    password_hash: str,
+    role: str,
+    nim: Optional[str],
+    name: str,
+) -> Dict[str, Any]:
+    """Buat atau perbarui user (idempoten berdasarkan username)."""
+    if _USE_NEON:
+        conn = _get_neon_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """
+                INSERT INTO users (username, password_hash, role, nim, name)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (username) DO UPDATE SET
+                    password_hash = EXCLUDED.password_hash,
+                    role = EXCLUDED.role,
+                    nim = EXCLUDED.nim,
+                    name = EXCLUDED.name;
+                """,
+                (username, password_hash, role, nim, name),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    else:
+        conn = _get_sqlite_conn()
+        try:
+            conn.execute(
+                """
+                INSERT INTO users (username, password_hash, role, nim, name, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(username) DO UPDATE SET
+                    password_hash=excluded.password_hash,
+                    role=excluded.role,
+                    nim=excluded.nim,
+                    name=excluded.name;
+                """,
+                (username, password_hash, role, nim, name, datetime.now().isoformat()),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    return get_user_by_username(username) or {
+        "username": username,
+        "role": role,
+        "nim": nim,
+        "name": name,
+    }
+
+
+def count_users() -> int:
+    """Jumlah user terdaftar."""
+    if _USE_NEON:
+        conn = _get_neon_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute("SELECT COUNT(*) FROM users;")
+            return int(cur.fetchone()[0])
+        finally:
+            conn.close()
+    conn = _get_sqlite_conn()
+    try:
+        return int(conn.execute("SELECT COUNT(*) FROM users;").fetchone()[0])
+    finally:
+        conn.close()
+
+
+def seed_default_users() -> None:
+    """Seed akun awal hanya bila tabel users masih kosong."""
+    if count_users() > 0:
+        return
+
+    from app.auth import hash_password  # lazy import: hindari circular import
+
+    defaults = [
+        {
+            "username": os.environ.get("SEED_DOSEN_USERNAME", "dosen"),
+            "password": os.environ.get("SEED_DOSEN_PASSWORD", "dosen123"),
+            "role": "dosen",
+            "nim": None,
+            "name": "Dosen Pengampu",
+        },
+        {
+            "username": os.environ.get("SEED_MAHASISWA_USERNAME", "mahasiswa"),
+            "password": os.environ.get("SEED_MAHASISWA_PASSWORD", "mhs123"),
+            "role": "mahasiswa",
+            "nim": "2024001",
+            "name": "Ahmad Fauzi (M1 - Normal)",
+        },
+    ]
+    for user in defaults:
+        upsert_user(
+            username=user["username"],
+            password_hash=hash_password(user["password"]),
+            role=user["role"],
+            nim=user["nim"],
+            name=user["name"],
+        )
+    logger.info("Akun awal dibuat: %s", ", ".join(u["username"] for u in defaults))
 
 
 def _init_neon_tables() -> None:
@@ -126,6 +277,17 @@ def _init_neon_tables() -> None:
             photo_path TEXT,
             legal_basis TEXT,
             simulated_case VARCHAR
+        );
+        """)
+
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            username VARCHAR PRIMARY KEY,
+            password_hash TEXT NOT NULL,
+            role VARCHAR NOT NULL,
+            nim VARCHAR,
+            name VARCHAR NOT NULL,
+            created_at TIMESTAMPTZ DEFAULT NOW()
         );
         """)
         conn.commit()
@@ -191,6 +353,16 @@ def _init_sqlite_tables() -> None:
         photo_path TEXT,
         legal_basis TEXT,
         simulated_case TEXT
+    );
+    """)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        username TEXT PRIMARY KEY,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL,
+        nim TEXT,
+        name TEXT NOT NULL,
+        created_at TEXT NOT NULL
     );
     """)
     conn.commit()
