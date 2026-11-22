@@ -1,5 +1,5 @@
 import React from 'react';
-import { Camera, ShieldCheck, Award, History, UserPlus } from 'lucide-react';
+import { Award, BookOpen, Camera, History, ShieldCheck, UserPlus } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { Role } from '../auth';
 
@@ -26,6 +26,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   const navItems: NavItem[] =
     role === 'dosen'
       ? [
+          { id: 'sessions', label: 'Sesi', icon: BookOpen },
           {
             id: 'oversight',
             label: 'Review',
@@ -38,7 +39,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       : [
           { id: 'presensi', label: 'Presensi', icon: Camera },
           { id: 'history', label: 'Riwayat', icon: History },
-          { id: 'register', label: 'Daftar', icon: UserPlus },
+          { id: 'register', label: 'Data Wajah', icon: UserPlus },
         ];
 
   return (

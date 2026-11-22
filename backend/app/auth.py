@@ -30,17 +30,40 @@ TOKEN_TTL_SECONDS = int(os.environ.get("AUTH_TOKEN_TTL_SECONDS", str(12 * 3600))
 _ENV_SECRET = os.environ.get("AUTH_SECRET", "").strip()
 _EPHEMERAL_SECRET: Optional[str] = None
 
+_DEPLOY_ENV = (
+    os.environ.get("VERCEL_ENV")
+    or os.environ.get("APP_ENV")
+    or os.environ.get("ENVIRONMENT")
+    or "development"
+).strip().lower()
+_IS_DEPLOYED = _DEPLOY_ENV in ("production", "preview", "staging")
+
+
+def auth_secret_is_configured() -> bool:
+    """True when a stable AUTH_SECRET is present in the environment."""
+    return bool(_ENV_SECRET)
+
 
 def _secret() -> bytes:
     """Kunci HMAC untuk menandatangani token."""
     if _ENV_SECRET:
         return _ENV_SECRET.encode("utf-8")
 
+    if _IS_DEPLOYED:
+        # Fail closed: an ephemeral secret in a multi-instance deployment makes
+        # tokens valid on one instance and invalid on the next, producing random
+        # 401s that look like a client bug. Refuse to start instead.
+        raise RuntimeError(
+            "AUTH_SECRET wajib diset pada deployment (VERCEL_ENV=%s). "
+            "Tanpa secret stabil, token sesi tidak valid antar-instance."
+            % _DEPLOY_ENV
+        )
+
     global _EPHEMERAL_SECRET
     if _EPHEMERAL_SECRET is None:
         _EPHEMERAL_SECRET = secrets.token_urlsafe(48)
         logger.warning(
-            "AUTH_SECRET tidak diset; memakai secret sementara. "
+            "AUTH_SECRET tidak diset; memakai secret sementara untuk pengembangan. "
             "Sesi akan hangus setiap proses restart."
         )
     return _EPHEMERAL_SECRET.encode("utf-8")

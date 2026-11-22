@@ -1,141 +1,363 @@
+"""
+FastAPI application — Sistem Presensi Wajah.
+
+Production rules enforced here (not in the client):
+  * Identity always comes from the session token. A student cannot submit a NIM.
+  * Attendance is bound to a scheduled ``session`` (course, room, time window).
+  * ``late_minutes`` is derived from the session schedule on the server clock.
+  * GPS coordinates must come with an accuracy estimate; low accuracy is rejected.
+  * Face verification fails closed: no face, several faces, a template from an
+    older model, or an unenrolled student all produce an explicit error instead
+    of a silently accepted record.
+  * Benchmark cases (M1-M6) are a dry-run policy simulation and never write to
+    the production attendance table.
+"""
+
+from __future__ import annotations
+
+import logging
 import os
 import sys
-import logging
-from typing import Optional, List, Dict, Any
-from datetime import datetime
+from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, Request, status, Depends
+from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-# Ensure backend root is on sys.path
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-from app.core.geo import (
-    calculate_classroom_distance,
-    DEFAULT_CLASSROOM_LAT,
-    DEFAULT_CLASSROOM_LON,
-    MAX_VALID_DISTANCE_METERS,
-    MAX_OVERSIGHT_DISTANCE_METERS,
-)
-from app.core.rules import (
-    evaluate_presensi,
-    BENCHMARK_CASES,
-    AttendanceStatus,
-    HumanOversightStatus,
-    FACE_MATCH_THRESHOLD,
-)
-from app.db.database import (
-    init_db,
-    is_using_neon,
-    get_student,
-    create_or_update_student,
-    get_all_students,
-    create_attendance,
-    get_attendance_by_id,
-    get_pending_oversight,
-    resolve_oversight,
-    get_all_attendances,
-    get_attendance_stats,
-    get_user_by_username,
-)
-from app.auth import (
+from app.auth import (  # noqa: E402
+    auth_secret_is_configured,
     create_token,
-    verify_password,
     get_current_user,
+    hash_password,
     require_dosen,
     require_mahasiswa,
+    verify_password,
 )
-
-# Optional ML engine import (graceful fallback if model / dependencies need it)
-try:
-    from app.ml.engine import process_face_image, compute_similarity
-except ImportError:
-    process_face_image = None
-    compute_similarity = None
-
-try:
-    from app.ml.benchmark import run_benchmark as run_ml_benchmark, get_benchmark_summary
-except ImportError:
-    run_ml_benchmark = None
-    get_benchmark_summary = None
+from app.core.geo import (  # noqa: E402
+    DEFAULT_CLASSROOM_LAT,
+    DEFAULT_CLASSROOM_LON,
+    MAX_OVERSIGHT_DISTANCE_METERS,
+    MAX_VALID_DISTANCE_METERS,
+    calculate_distance,
+)
+from app.core.rules import (  # noqa: E402
+    BENCHMARK_CASES,
+    FACE_MATCH_THRESHOLD,
+    MAX_ONTIME_LATE_MINUTES,
+    MAX_VALID_LATE_MINUTES,
+    AttendanceStatus,
+    compute_late_minutes,
+    evaluate_presensi,
+)
+from app.db.database import (  # noqa: E402
+    create_attendance,
+    create_or_update_student,
+    create_session,
+    delete_student_biometric,
+    find_best_matches,
+    get_active_sessions,
+    get_all_attendances,
+    get_all_students,
+    get_attendance_stats,
+    get_pending_oversight,
+    get_session,
+    get_student,
+    get_student_embedding,
+    get_user_by_nim,
+    get_user_by_username,
+    has_pgvector,
+    init_db,
+    is_using_neon,
+    list_sessions,
+    resolve_oversight,
+    update_user_nim,
+    upsert_user,
+)
+from app.ml.engine import (  # noqa: E402
+    MODEL_VERSION,
+    FaceEngineError,
+    FaceEngineUnavailable,
+    FaceNotFound,
+    InvalidImage,
+    compute_similarity,
+    engine_info,
+    extract_face_embedding,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("app.main")
 
-# Lifespan context manager
-from contextlib import asynccontextmanager
+# ==============================================================================
+# CONFIGURATION
+# ==============================================================================
+GPS_MAX_ACCURACY_METERS = float(os.environ.get("GPS_MAX_ACCURACY_METERS", "50"))
+SESSION_EARLY_OPEN_MINUTES = float(os.environ.get("SESSION_EARLY_OPEN_MINUTES", "15"))
+FACE_MIN_FACE_RATIO = float(os.environ.get("FACE_MIN_FACE_RATIO", "0.02"))
+ENROLL_DUPLICATE_THRESHOLD = float(os.environ.get("ENROLL_DUPLICATE_THRESHOLD", "0.60"))
+IDENTITY_MISMATCH_MARGIN = float(os.environ.get("IDENTITY_MISMATCH_MARGIN", "0.12"))
+
+LEGAL_BASIS_TEXT = (
+    "UU 27/2022 Pasal 10 (hak subjek data untuk keberatan atas keputusan "
+    "otomatis) dan Pasal 34 (kewajiban penilaian dampak pelindungan data "
+    "untuk pemrosesan berisiko tinggi, termasuk data biometrik)."
+)
+
 
 @asynccontextmanager
-async def lifespan(app_instance: FastAPI):
+async def lifespan(_: FastAPI):
     init_db()
-    backend = "Neon PostgreSQL" if is_using_neon() else "SQLite"
-    logger.info("Database %s berhasil diinisialisasi pada startup.", backend)
+    logger.info(
+        "Database siap: %s (pgvector=%s). Mesin wajah: %s",
+        "Neon PostgreSQL" if is_using_neon() else "SQLite",
+        has_pgvector(),
+        engine_info().get("model_name"),
+    )
     yield
 
-# ==============================================================================
-# FASTAPI APP CREATION & LIFESPAN
-# ==============================================================================
+
 app = FastAPI(
-    title="Sistem Presensi Wajah Berbasis AI (Modul 13 & UU PDP)",
+    title="Sistem Presensi Wajah Berbasis AI",
     description=(
-        "Sistem Presensi Mahasiswa Berbasis Pengenalan Wajah dan Geospasial "
-        "dengan Mekanisme Human Oversight Berdasarkan UU PDP No. 27 Tahun 2022 Pasal 34."
+        "Presensi mahasiswa berbasis verifikasi wajah (SCRFD + ArcFace) dan "
+        "geofence per sesi kuliah, dengan human oversight sesuai UU PDP 27/2022."
     ),
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
-# Enable CORS for local dev and Hugging Face Spaces deployment
+_allowed_origins = [
+    origin.strip()
+    for origin in os.environ.get(
+        "CORS_ALLOW_ORIGINS",
+        "http://localhost:5173,http://localhost:7860,http://127.0.0.1:5173",
+    ).split(",")
+    if origin.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_allowed_origins,
+    allow_credentials="*" not in _allowed_origins,
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
+
 # ==============================================================================
-# REQUEST & RESPONSE SCHEMAS
+# REQUEST MODELS
 # ==============================================================================
 class RegisterRequest(BaseModel):
-    nim: str = Field(..., description="NIM Mahasiswa")
-    name: str = Field(..., description="Nama Mahasiswa")
-    face_image: Optional[str] = Field(None, description="Foto wajah Base64")
+    nim: str = Field(..., min_length=1, max_length=32)
+    name: str = Field(..., min_length=1, max_length=128)
+    face_image: str = Field(..., description="Foto wajah Base64 / data URI")
+    consent: bool = Field(
+        False, description="Persetujuan pemrosesan data biometrik (UU PDP)"
+    )
 
 
 class PresensiApiRequest(BaseModel):
-    nim: Optional[str] = Field(None, description="NIM Mahasiswa (Opsional, kosongkan untuk Auto-Detect dari wajah)")
-    name: Optional[str] = Field(None, description="Nama Mahasiswa (opsional)")
-    face_image: Optional[str] = Field(None, description="Foto swafoto kamera (Base64 data URL atau raw)")
-    latitude: Optional[float] = Field(None, description="Latitude GPS saat ini (wajib untuk presensi non-simulasi)")
-    longitude: Optional[float] = Field(None, description="Longitude GPS saat ini (wajib untuk presensi non-simulasi)")
-    late_minutes: float = Field(0.0, description="Keterlambatan dalam menit")
-    simulated_case: Optional[str] = Field(None, description="Simulasi kasus M1, M2, M3, M4, M5, M6")
+    session_id: int = Field(..., gt=0)
+    face_image: str = Field(..., description="Swafoto kamera (Base64 / data URI)")
+    latitude: float = Field(..., ge=-90, le=90)
+    longitude: float = Field(..., ge=-180, le=180)
+    gps_accuracy: float = Field(..., ge=0, description="Akurasi GPS dalam meter")
+    captured_at: Optional[datetime] = Field(
+        None, description="Waktu pengambilan foto di perangkat (audit saja)"
+    )
+
+
+class SimulateRequest(BaseModel):
+    case_id: str = Field(..., min_length=2, max_length=2)
+
+
+class SessionCreateRequest(BaseModel):
+    course_code: str = Field(..., min_length=1, max_length=32)
+    course_name: str = Field(..., min_length=1, max_length=128)
+    room_name: Optional[str] = Field(None, max_length=128)
+    latitude: float = Field(..., ge=-90, le=90)
+    longitude: float = Field(..., ge=-180, le=180)
+    radius_m: float = Field(50.0, ge=10, le=500)
+    starts_at: datetime
+    ends_at: datetime
+
 
 class ResolveApiRequest(BaseModel):
     attendance_id: int
     approved: bool
-    lecturer_note: str
-    resolved_by: Optional[str] = None
-    lecturer_name: Optional[str] = None
+    lecturer_note: str = Field(..., min_length=3, max_length=1000)
+
 
 class LoginApiRequest(BaseModel):
-    username: str = Field(..., min_length=1, description="Username akun")
-    password: str = Field(..., min_length=1, description="Password akun")
+    username: str = Field(..., min_length=1)
+    password: str = Field(..., min_length=1)
 
-# Throttle login sederhana (per proses): batasi percobaan gagal per username.
+
+class RegisterAccountApiRequest(BaseModel):
+    username: str = Field(..., min_length=3, max_length=64)
+    password: str = Field(..., min_length=4, max_length=128)
+    nim: str = Field(..., min_length=1, max_length=32)
+    name: str = Field(..., min_length=1, max_length=128)
+    face_image: str = Field(..., description="Foto wajah Base64 / data URI")
+    consent: bool = Field(
+        False, description="Persetujuan pemrosesan data biometrik (UU PDP)"
+    )
+
+
+# ==============================================================================
+# HELPERS
+# ==============================================================================
+def _utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _iso(value: datetime) -> str:
+    return _utc(value).isoformat()
+
+
+def _parse_session_time(value: Any) -> datetime:
+    text = str(value).strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    return _utc(datetime.fromisoformat(text))
+
+
+def _format_attendance(record: Dict[str, Any]) -> Dict[str, Any]:
+    """Shape a DB row for the API without leaking base64 image payloads."""
+    if not record:
+        return {}
+    result = dict(record)
+    result["name"] = result.get("student_name") or result.get("name")
+    result["initial_rule_status"] = result.get("status_awal")
+    result["lecturer_note"] = (
+        result.get("resolution_note") or result.get("note") or result.get("lecturer_note")
+    )
+    preview = result.get("photo_path")
+    if isinstance(preview, str) and preview.startswith("data:"):
+        preview = None
+    result["face_image_preview"] = preview
+    return result
+
+
+def _extract_face(image: str) -> tuple[Any, Dict[str, Any]]:
+    """Run the face pipeline and translate engine failures into HTTP errors."""
+    try:
+        embedding, metadata = extract_face_embedding(image)
+    except FaceNotFound as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Wajah tidak terdeteksi: {exc}",
+        ) from exc
+    except InvalidImage as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Gambar tidak valid: {exc}",
+        ) from exc
+    except FaceEngineUnavailable as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Mesin pengenalan wajah tidak tersedia: {exc}",
+        ) from exc
+    except FaceEngineError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Gagal memproses wajah: {exc}",
+        ) from exc
+
+    if metadata.get("faces_detected", 0) != 1:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "Foto harus memuat tepat satu wajah. "
+                f"Terdeteksi {metadata.get('faces_detected', 0)} wajah."
+            ),
+        )
+    if float(metadata.get("face_ratio", 0.0)) < FACE_MIN_FACE_RATIO:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "Wajah terlalu kecil dalam frame. Dekatkan kamera sehingga wajah "
+                "memenuhi bingkai panduan."
+            ),
+        )
+    return embedding, metadata
+
+
+def _require_enrolled_template(nim: str) -> List[float]:
+    student = get_student(nim)
+    if not student:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Mahasiswa belum terdaftar. Lakukan pendaftaran wajah terlebih dahulu.",
+        )
+    embedding = get_student_embedding(nim)
+    if not embedding:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Wajah belum terdaftar. Lakukan pendaftaran wajah terlebih dahulu.",
+        )
+    if student.get("model_version") != MODEL_VERSION:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Template wajah tersimpan memakai model lama dan tidak kompatibel. "
+                "Silakan daftarkan ulang wajah Anda."
+            ),
+        )
+    return embedding
+
+
+def _active_session_or_404(session_id: int) -> Dict[str, Any]:
+    session = get_session(session_id)
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Sesi kuliah {session_id} tidak ditemukan.",
+        )
+    return session
+
+
+# ==============================================================================
+# HEALTH
+# ==============================================================================
+@app.get("/health")
+def health_check():
+    """Liveness/readiness probe with engine and database diagnostics."""
+    engine = engine_info()
+    return {
+        "status": "ok" if engine.get("available") else "degraded",
+        "app": "Sistem Presensi Wajah Berbasis AI",
+        "version": "2.0.0",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "database": {
+            "backend": "neon" if is_using_neon() else "sqlite",
+            "pgvector": has_pgvector(),
+        },
+        "face_engine": engine,
+        "auth": {"secret_configured": auth_secret_is_configured()},
+        "legal_compliance": LEGAL_BASIS_TEXT,
+    }
+
+
+# ==============================================================================
+# AUTH
+# ==============================================================================
+_login_failures: Dict[str, List[float]] = {}
 _LOGIN_MAX_ATTEMPTS = int(os.environ.get("AUTH_LOGIN_MAX_ATTEMPTS", "8"))
 _LOGIN_WINDOW_SECONDS = int(os.environ.get("AUTH_LOGIN_WINDOW_SECONDS", "300"))
-_login_failures: Dict[str, List[float]] = {}
 
 
 def _login_throttle_check(username: str) -> None:
-    """Tolak login sementara bila percobaan gagal melewati batas."""
-    now = datetime.now().timestamp()
-    attempts = [t for t in _login_failures.get(username, []) if now - t < _LOGIN_WINDOW_SECONDS]
+    now = datetime.now(timezone.utc).timestamp()
+    attempts = [
+        t for t in _login_failures.get(username, []) if now - t < _LOGIN_WINDOW_SECONDS
+    ]
     _login_failures[username] = attempts
     if len(attempts) >= _LOGIN_MAX_ATTEMPTS:
         raise HTTPException(
@@ -144,63 +366,23 @@ def _login_throttle_check(username: str) -> None:
         )
 
 
-def _login_record_failure(username: str) -> None:
-    now = datetime.now().timestamp()
-    _login_failures.setdefault(username, []).append(now)
-
-
-def _login_clear_failures(username: str) -> None:
-    _login_failures.pop(username, None)
-
-
-# Helper formatter for Attendance record
-def _format_attendance(rec: Dict[str, Any]) -> Dict[str, Any]:
-    if not rec:
-        return {}
-    res = dict(rec)
-    res["name"] = res.get("student_name") or res.get("name")
-    res["initial_rule_status"] = res.get("status_awal") or res.get("initial_rule_status")
-    res["lecturer_note"] = res.get("resolution_note") or res.get("note") or res.get("lecturer_note")
-    res["face_image_preview"] = res.get("photo_path") or res.get("face_image_preview")
-    return res
-
-
-# ==============================================================================
-# ENDPOINTS
-# ==============================================================================
-@app.get("/health")
-def health_check():
-    """Endpoint pemeriksaan kesehatan layanan (health check)."""
-    return {
-        "status": "ok",
-        "app": "Sistem Presensi Wajah Berbasis AI (Kelompok 6)",
-        "version": "1.0.0",
-        "timestamp": datetime.now().isoformat(),
-        "legal_compliance": "UU No. 27/2022 Pasal 34 (Larangan Otomasi Tunggal pada Data Biometrik)",
-    }
-
-
 @app.post("/api/auth/login")
 def auth_login(req: LoginApiRequest):
-    """
-    Menukar username/password dengan token sesi Bearer.
-
-    Password diverifikasi terhadap hash PBKDF2 tersimpan. Pesan error dibuat
-    seragam agar tidak membocorkan username mana yang valid.
-    """
     username = req.username.strip()
     _login_throttle_check(username)
 
     user = get_user_by_username(username)
     if not user or not verify_password(req.password, user.get("password_hash", "")):
-        _login_record_failure(username)
+        _login_failures.setdefault(username, []).append(
+            datetime.now(timezone.utc).timestamp()
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Username atau password salah.",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    _login_clear_failures(username)
+    _login_failures.pop(username, None)
     token = create_token(user)
     logger.info("Login berhasil: %s (%s)", user["username"], user["role"])
     return {
@@ -214,9 +396,92 @@ def auth_login(req: LoginApiRequest):
     }
 
 
+@app.post("/api/auth/register", status_code=status.HTTP_201_CREATED)
+def auth_register(req: RegisterAccountApiRequest):
+    username = req.username.strip()
+    nim = req.nim.strip()
+    name = req.name.strip()
+
+    if not req.consent:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Persetujuan pemrosesan data biometrik diperlukan (UU PDP Pasal 20). "
+                "Centang persetujuan sebelum mendaftarkan akun."
+            ),
+        )
+
+    if get_user_by_username(username):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Username '{username}' sudah digunakan. Silakan pilih username lain.",
+        )
+
+    existing_user_with_nim = get_user_by_nim(nim)
+    if existing_user_with_nim:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"NIM '{nim}' sudah terdaftar pada akun lain ({existing_user_with_nim['username']}).",
+        )
+
+    embedding, metadata = _extract_face(req.face_image)
+
+    existing_matches = find_best_matches(
+        embedding.tolist(), limit=3, model_version=MODEL_VERSION
+    )
+    for match in existing_matches:
+        if (
+            match["nim"] != nim
+            and float(match.get("similarity") or 0.0) >= ENROLL_DUPLICATE_THRESHOLD
+        ):
+            logger.warning(
+                "Pendaftaran ditolak: wajah pendaftar %s mirip dengan NIM %s (%.2f).",
+                nim,
+                match["nim"],
+                match["similarity"],
+            )
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Wajah ini sudah terdaftar pada NIM lain. "
+                    "Hubungi dosen/admin bila ini keliru."
+                ),
+            )
+
+    create_or_update_student(
+        nim=nim,
+        name=name,
+        profile_image_path=None,
+        embedding=embedding.tolist(),
+        model_name=metadata.get("model_name"),
+        model_version=MODEL_VERSION,
+        consent=True,
+    )
+
+    user = upsert_user(
+        username=username,
+        password_hash=hash_password(req.password),
+        role="mahasiswa",
+        nim=nim,
+        name=name,
+    )
+
+    token = create_token(user)
+    logger.info("Registrasi akun dan wajah berhasil: %s (%s)", username, nim)
+    return {
+        "token": token,
+        "user": {
+            "username": user["username"],
+            "role": user["role"],
+            "nim": user.get("nim"),
+            "name": user["name"],
+        },
+        "message": f"Akun dan wajah untuk {name} ({nim}) berhasil didaftarkan.",
+    }
+
+
 @app.get("/api/auth/me")
 def auth_me(user: Dict[str, Any] = Depends(get_current_user)):
-    """Mengembalikan identitas pemilik token yang sedang aktif."""
     return {
         "username": user["sub"],
         "role": user["role"],
@@ -225,61 +490,182 @@ def auth_me(user: Dict[str, Any] = Depends(get_current_user)):
     }
 
 
+# ==============================================================================
+# SESSIONS
+# ==============================================================================
+@app.get("/api/sessions/active")
+def list_active_sessions(user: Dict[str, Any] = Depends(get_current_user)):
+    """Sessions currently open for attendance (mahasiswa pick one)."""
+    now = datetime.now(timezone.utc)
+    sessions = get_active_sessions(_iso(now))
+    return [
+        {
+            **s,
+            "is_open": True,
+            "seconds_until_close": max(
+                0,
+                int(
+                    (
+                        _parse_session_time(s["ends_at"]) - now
+                    ).total_seconds()
+                ),
+            ),
+        }
+        for s in sessions
+    ]
+
+
+@app.get("/api/sessions")
+def list_all_sessions(
+    limit: int = 50, user: Dict[str, Any] = Depends(require_dosen)
+):
+    return list_sessions(limit=limit)
+
+
+@app.post("/api/sessions", status_code=status.HTTP_201_CREATED)
+def create_session_endpoint(
+    req: SessionCreateRequest, user: Dict[str, Any] = Depends(require_dosen)
+):
+    starts_at = _utc(req.starts_at)
+    ends_at = _utc(req.ends_at)
+    if ends_at <= starts_at:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="ends_at harus setelah starts_at.",
+        )
+    if (ends_at - starts_at) > timedelta(hours=12):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Durasi sesi maksimal 12 jam.",
+        )
+
+    session = create_session(
+        course_code=req.course_code.strip(),
+        course_name=req.course_name.strip(),
+        room_name=req.room_name,
+        room_lat=req.latitude,
+        room_lon=req.longitude,
+        radius_m=req.radius_m,
+        starts_at=_iso(starts_at),
+        ends_at=_iso(ends_at),
+    )
+    logger.info("Sesi baru dibuat: %s (%s)", session.get("course_code"), session.get("id"))
+    return session
+
+
 @app.get("/api/classroom")
 def get_classroom_info():
-    """Mengambil koordinat acuan dan batas radius ruang kelas resmi."""
+    """Default classroom reference (kept for backward compatibility)."""
     return {
         "latitude": DEFAULT_CLASSROOM_LAT,
         "longitude": DEFAULT_CLASSROOM_LON,
         "max_valid_distance_meters": MAX_VALID_DISTANCE_METERS,
         "max_oversight_distance_meters": MAX_OVERSIGHT_DISTANCE_METERS,
+        "note": "Presensi memakai koordinat ruang pada sesi, bukan titik default ini.",
     }
 
 
+# ==============================================================================
+# STUDENTS & ENROLLMENT
+# ==============================================================================
 @app.get("/api/students")
-def list_students(user: Dict[str, Any] = Depends(get_current_user)):
-    """Mengambil daftar seluruh mahasiswa yang terdaftar."""
+def list_students(user: Dict[str, Any] = Depends(require_dosen)):
+    """Roster for lecturers. Never returns face templates."""
     return get_all_students()
 
 
+@app.get("/api/students/me")
+def get_my_profile(user: Dict[str, Any] = Depends(get_current_user)):
+    if user["role"] != "mahasiswa" or not user.get("nim"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Endpoint ini hanya untuk akun mahasiswa.",
+        )
+    student = get_student(user["nim"])
+    if not student:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profil mahasiswa belum terdaftar.",
+        )
+    student.pop("embedding", None)
+    return student
+
+
 @app.post("/api/register")
-def register_student(req: RegisterRequest, user: Dict[str, Any] = Depends(get_current_user)):
+def register_student(
+    req: RegisterRequest, user: Dict[str, Any] = Depends(get_current_user)
+):
     """
-    Mendaftarkan profil mahasiswa dan mengekstrak vektor biometrik wajah 512-D.
+    Enroll a face template. Requires explicit biometric consent.
+
+    A student may only enroll their own NIM. The face is rejected when it
+    already belongs to another enrolled student, which prevents one person
+    from creating several identities.
     """
-    if user["role"] == "mahasiswa" and user.get("nim") and req.nim != user["nim"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Mahasiswa hanya dapat mendaftarkan wajahnya sendiri.",
-        )
-    if not req.face_image:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="face_image wajib untuk pendaftaran biometrik.",
-        )
-    if process_face_image is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Mesin ekstraksi wajah tidak tersedia.",
-        )
-    try:
-        embedding = process_face_image(req.face_image)
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Gagal mengekstrak embedding wajah: {exc}",
-        ) from exc
-    if embedding is None or len(embedding) == 0:
+    if user["role"] == "mahasiswa":
+        user_nim = user.get("nim")
+        if not user_nim:
+            user_nim = req.nim.strip()
+            update_user_nim(user["username"], user_nim, user.get("name"))
+        elif req.nim and req.nim.strip() != user_nim:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    f"Mahasiswa hanya dapat mendaftarkan wajahnya sendiri "
+                    f"(Akun Anda terikat pada NIM {user_nim}). "
+                    "Gunakan menu Registrasi di halaman depan untuk mendaftar akun baru."
+                ),
+            )
+        req_nim = user_nim
+        name = user["name"]
+    else:
+        req_nim = req.nim.strip()
+        name = req.name.strip()
+
+    if not req.consent:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Embedding wajah kosong; pendaftaran dibatalkan.",
+            detail=(
+                "Persetujuan pemrosesan data biometrik diperlukan. "
+                "Centang persetujuan sebelum mendaftarkan wajah."
+            ),
         )
 
+    embedding, metadata = _extract_face(req.face_image)
+
+    existing_matches = find_best_matches(
+        embedding.tolist(), limit=3, model_version=MODEL_VERSION
+    )
+    for match in existing_matches:
+        if (
+            match["nim"] != req_nim
+            and float(match.get("similarity") or 0.0) >= ENROLL_DUPLICATE_THRESHOLD
+        ):
+            logger.warning(
+                "Pendaftaran ditolak: wajah %s mirip dengan NIM %s (%.2f).",
+                req_nim,
+                match["nim"],
+                match["similarity"],
+            )
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Wajah ini sudah terdaftar pada NIM lain. "
+                    "Hubungi dosen/admin bila ini keliru."
+                ),
+            )
+
+    prior = get_student(req_nim)
+    is_update = bool(prior and prior.get("embedding"))
+
     student = create_or_update_student(
-        nim=req.nim,
-        name=req.name,
-        profile_image_path=f"data/profiles/{req.nim}.jpg",
+        nim=req_nim,
+        name=name,
+        profile_image_path=None,
         embedding=embedding.tolist(),
+        model_name=metadata.get("model_name"),
+        model_version=MODEL_VERSION,
+        consent=True,
     )
 
     return {
@@ -287,225 +673,276 @@ def register_student(req: RegisterRequest, user: Dict[str, Any] = Depends(get_cu
         "nim": student["nim"],
         "name": student["name"],
         "has_embedding": True,
-        "message": f"Mahasiswa {student['name']} ({student['nim']}) berhasil didaftarkan.",
+        "model_version": MODEL_VERSION,
+        "quality": {
+            "detection_score": metadata.get("detection_score"),
+            "face_ratio": metadata.get("face_ratio"),
+            "faces_detected": metadata.get("faces_detected"),
+        },
+        "message": (
+            f"Wajah {student['name']} ({student['nim']}) berhasil diperbarui."
+            if is_update
+            else f"Wajah {student['name']} ({student['nim']}) berhasil didaftarkan."
+        ),
     }
 
 
-@app.post("/api/presensi")
-def submit_presensi(req: PresensiApiRequest, user: Dict[str, Any] = Depends(get_current_user)):
-    """
-    Memproses swafoto presensi mahasiswa:
-    1. Menghitung jarak GPS ke ruang kelas dengan Haversine
-    2. Menghitung kemiripan wajah biometrik (Cosine Similarity 512-D)
-    3. Mengevaluasi Rancangan Awal vs Rancangan UU PDP (Human Oversight Pasal 34)
-    4. Menyimpan rekaman kehadiran ke database
-
-    Identitas diambil dari token sesi untuk mahasiswa, sehingga NIM tidak dapat
-    dipalsukan lewat body request. Simulasi benchmark hanya untuk dosen.
-    """
-    # 1. Cari data mahasiswa atau daftarkan jika belum ada
-    import numpy as np
-    from app.db.database import get_all_students_with_embeddings
-
-    sim_case = req.simulated_case.upper() if req.simulated_case else None
-    if sim_case and user["role"] != "dosen":
+@app.delete("/api/students/{nim}/biometric")
+def erase_biometric(nim: str, user: Dict[str, Any] = Depends(get_current_user)):
+    """Right to erasure: delete the face template, keep the identity record."""
+    if user["role"] == "mahasiswa" and user.get("nim") != nim:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Simulasi benchmark hanya dapat dijalankan oleh dosen.",
+            detail="Mahasiswa hanya dapat menghapus data biometriknya sendiri.",
         )
-    if user["role"] == "mahasiswa":
-        session_nim = user.get("nim")
-        if not session_nim:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Akun mahasiswa tidak terhubung ke NIM.",
-            )
-        req.nim = session_nim
+    if not delete_student_biometric(nim):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Data biometrik untuk NIM {nim} tidak ditemukan.",
+        )
+    return {"success": True, "nim": nim, "message": "Template wajah telah dihapus."}
 
-    case_def = next((c for c in BENCHMARK_CASES if c["id"] == sim_case), None)
 
-    # Gerbang fail-closed: presensi non-simulasi wajib menyertakan bukti wajah dan lokasi.
-    if case_def is None:
-        if not req.face_image:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="face_image wajib untuk presensi non-simulasi.",
-            )
-        if req.latitude is None or req.longitude is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="latitude dan longitude wajib untuk presensi non-simulasi.",
-            )
+# ==============================================================================
+# PRESENSI
+# ==============================================================================
+@app.post("/api/presensi")
+def submit_presensi(
+    req: PresensiApiRequest, user: Dict[str, Any] = Depends(require_mahasiswa)
+):
+    """
+    Submit attendance for the authenticated student.
 
-    student = None
-    student_name = "Mahasiswa Terdeteksi"
-    similarity_score = 0.0
+    The client supplies only the session, a live selfie, and a GPS fix.
+    Identity, timing, and the geofence are resolved server-side.
+    """
+    nim = user.get("nim")
+    if not nim:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Akun mahasiswa tidak terhubung ke NIM.",
+        )
 
-    # 1. Jika ada foto wajah dan ML engine siap, lakukan ekstraksi biometrik
-    if req.face_image and process_face_image is not None:
-        try:
-            input_emb = process_face_image(req.face_image)
-            
-            # Kasus A: NIM diberikan spesifik (1:1 Verification)
-            if req.nim and req.nim not in ("AUTO", ""):
-                student = get_student(req.nim)
-                if not student:
-                    student_name = req.name or f"Mahasiswa {req.nim}"
-                    student = create_or_update_student(nim=req.nim, name=student_name)
-                else:
-                    student_name = student["name"]
+    session = _active_session_or_404(req.session_id)
+    now = datetime.now(timezone.utc)
+    starts_at = _parse_session_time(session["starts_at"])
+    ends_at = _parse_session_time(session["ends_at"])
+    opens_at = starts_at - timedelta(minutes=SESSION_EARLY_OPEN_MINUTES)
 
-                if student.get("embedding"):
-                    stored_emb = np.array(student["embedding"], dtype=np.float32)
-                    similarity_score = round(compute_similarity(input_emb, stored_emb), 2)
-                else:
-                    logger.warning(
-                        "Verifikasi 1:1 gagal: mahasiswa %s belum memiliki embedding referensi.",
-                        req.nim,
-                    )
-                    similarity_score = 0.0
-            else:
-                # Kasus B: 1:N AUTO-IDENTIFICATION DARI WAJAH ASLI
-                candidates = get_all_students_with_embeddings()
-                best_match = None
-                best_sim = -1.0
+    if now < opens_at:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Sesi belum dibuka. Presensi dapat dilakukan mulai "
+                f"{opens_at.isoformat()}."
+            ),
+        )
+    if now > ends_at:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Sesi sudah ditutup pada {ends_at.isoformat()}.",
+        )
 
-                for cand in candidates:
-                    if cand.get("embedding"):
-                        cand_emb = np.array(cand["embedding"], dtype=np.float32)
-                        sim = float(compute_similarity(input_emb, cand_emb))
-                        if sim > best_sim:
-                            best_sim = sim
-                            best_match = cand
+    if req.gps_accuracy > GPS_MAX_ACCURACY_METERS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"Akurasi GPS terlalu rendah ({req.gps_accuracy:.0f} m). "
+                f"Maksimum {GPS_MAX_ACCURACY_METERS:.0f} m — pindah ke area terbuka "
+                "atau tunggu sinyal GPS membaik."
+            ),
+        )
 
-                # Threshold ketat: wajah HARUS melewati FACE_MATCH_THRESHOLD (0.85)
-                # agar tidak ada false positive. Di bawah threshold = wajah tidak dikenal.
-                if best_match and best_sim >= FACE_MATCH_THRESHOLD:
-                    student = best_match
-                    student_name = student["name"]
-                    similarity_score = round(best_sim, 2)
-                    logger.info(f"Auto-detect berhasil mengenali: {student_name} ({student['nim']}) - Skor: {similarity_score}")
-                else:
-                    # Tidak ada yang cocok — jangan assign siapapun
-                    logger.warning(f"Auto-detect GAGAL: best_sim={round(best_sim,2)} < threshold={FACE_MATCH_THRESHOLD}. Wajah tidak dikenal.")
-                    similarity_score = round(best_sim, 2) if best_sim >= 0 else 0.0
-                    student = {"nim": "UNKNOWN", "name": "Wajah Tidak Dikenal"}
-                    student_name = "Wajah Tidak Dikenal"
-        except Exception as e:
-            logger.warning(f"Gagal melakukan inferensi biometrik: {e}")
-            fallback_nim = req.nim or "2024001"
-            student = student or get_student(fallback_nim) or {"nim": fallback_nim, "name": req.name or "Mahasiswa"}
-            student_name = student["name"]
-            similarity_score = 0.0
-    else:
-        # Tidak ada foto wajah
-        if req.nim and req.nim not in ("AUTO", ""):
-            fallback_nim = req.nim
-            student = get_student(fallback_nim) or {"nim": fallback_nim, "name": req.name or "Mahasiswa"}
-            student_name = student["name"]
-        else:
-            # Tidak ada foto dan tidak ada NIM → tidak bisa identifikasi
-            student = {"nim": "UNKNOWN", "name": "Wajah Tidak Dikenal"}
-            student_name = "Wajah Tidak Dikenal"
-            similarity_score = 0.0
+    stored_embedding = _require_enrolled_template(nim)
+    input_embedding, face_metadata = _extract_face(req.face_image)
 
-    # 2. Tentukan parameter jarak & waktu: apakah simulasi benchmark M1-M6?
-    if sim_case and case_def:
-        distance_meters = float(case_def["distance"])
-        late_minutes = float(case_def["late"])
-        similarity_score = float(case_def["score"])
-    else:
-        distance_meters = calculate_classroom_distance(float(req.latitude), float(req.longitude))
-        late_minutes = float(req.late_minutes)
-    # 3. Jalankan Decision Engine (Dual Evaluation)
-    eval_result = evaluate_presensi(
-        score=similarity_score,
+    similarity = compute_similarity(input_embedding, stored_embedding)
+    distance_meters = calculate_distance(
+        req.latitude, req.longitude, session["room_lat"], session["room_lon"]
+    )
+    late_minutes = compute_late_minutes(starts_at, now)
+
+    evaluation = evaluate_presensi(
+        score=similarity,
         distance_meters=distance_meters,
         late_minutes=late_minutes,
-        simulated_case=sim_case,
+        radius_meters=float(session.get("radius_m") or MAX_VALID_DISTANCE_METERS),
+        oversight_radius_meters=max(
+            float(session.get("radius_m") or MAX_VALID_DISTANCE_METERS) * 2,
+            MAX_OVERSIGHT_DISTANCE_METERS,
+        ),
     )
 
-    # 4. Simpan ke database
-    record_data = {
-        "nim": student["nim"] if student else (req.nim or "2024001"),
-        "student_name": student_name,
-        "timestamp": datetime.now().isoformat(),
-        "similarity_score": eval_result["similarity_score"],
-        "distance_meters": eval_result["distance_meters"],
-        "late_minutes": eval_result["late_minutes"],
-        "status": eval_result["status_uupdp"],
-        "status_awal": eval_result["status_awal"],
-        "status_uupdp": eval_result["status_uupdp"],
-        "decision_reason": eval_result["decision_reason"],
-        "requires_human_oversight": eval_result["requires_human_oversight"],
-        "human_oversight_status": eval_result["human_oversight_status"],
-        "note": eval_result.get("decision_reason_awal"),
-        "legal_basis": eval_result["legal_basis"],
-        "simulated_case": sim_case,
-        "photo_path": req.face_image[:100] if req.face_image else None,
+    # Anti-proxy signal: does this face look more like somebody else?
+    top_matches = find_best_matches(
+        input_embedding.tolist(), limit=3, model_version=MODEL_VERSION
+    )
+    identity_check = {
+        "claimed_similarity": round(float(similarity), 4),
+        "best_match_nim": top_matches[0]["nim"] if top_matches else None,
+        "best_match_similarity": (
+            round(float(top_matches[0]["similarity"]), 4) if top_matches else None
+        ),
+        "is_identity_mismatch": False,
+    }
+    if top_matches:
+        best = top_matches[0]
+        if (
+            best["nim"] != nim
+            and float(best["similarity"]) >= FACE_MATCH_THRESHOLD
+            and float(best["similarity"]) - similarity >= IDENTITY_MISMATCH_MARGIN
+        ):
+            identity_check["is_identity_mismatch"] = True
+            if evaluation["status"] in (
+                AttendanceStatus.HADIR.value,
+                AttendanceStatus.TERLAMBAT.value,
+            ):
+                evaluation.update(
+                    {
+                        "status": AttendanceStatus.PERLU_VERIFIKASI_DOSEN.value,
+                        "status_uupdp": AttendanceStatus.PERLU_VERIFIKASI_DOSEN.value,
+                        "requires_human_oversight": True,
+                        "human_oversight_status": "PENDING",
+                        "decision_reason": (
+                            "Wajah lebih mirip dengan mahasiswa lain "
+                            f"({best['nim']}, skor {best['similarity']:.2f}) daripada "
+                            f"pemilik akun ({similarity:.2f}). Indikasi presensi "
+                            "proxy; menunggu verifikasi dosen."
+                        ),
+                    }
+                )
+
+    record = {
+        "nim": nim,
+        "student_name": user["name"],
+        "timestamp": now.isoformat(),
+        "similarity_score": round(float(similarity), 4),
+        "distance_meters": round(float(distance_meters), 2),
+        "late_minutes": round(float(late_minutes), 1),
+        "status": evaluation["status_uupdp"],
+        "status_awal": evaluation["status_awal"],
+        "status_uupdp": evaluation["status_uupdp"],
+        "decision_reason": evaluation["decision_reason"],
+        "requires_human_oversight": evaluation["requires_human_oversight"],
+        "human_oversight_status": evaluation["human_oversight_status"],
+        "note": evaluation.get("decision_reason_awal"),
+        "legal_basis": LEGAL_BASIS_TEXT,
+        "simulated_case": None,
+        "session_id": int(session["id"]),
+        "gps_accuracy": round(float(req.gps_accuracy), 2),
+        "model_version": MODEL_VERSION,
+        "face_detection_score": face_metadata.get("detection_score"),
+        "photo_path": None,
     }
 
-    saved_attendance = create_attendance(record_data)
-    formatted = _format_attendance(saved_attendance)
-    identified_nim = record_data["nim"]
+    saved = create_attendance(record)
+    duplicate = int(saved.get("id", 0)) > 0 and saved.get("timestamp") != record["timestamp"]
 
-    # Kembalikan response terpadu
     return {
-        "id": formatted.get("id"),
-        "student_id": formatted.get("id"),
-        "nim": identified_nim,
-        "name": student_name,
-        "student_name": student_name,
-        "status": formatted.get("status"),
-        "initial_rule_status": formatted.get("status_awal"),
-        "status_awal": formatted.get("status_awal"),
-        "status_uupdp": formatted.get("status_uupdp"),
-        "similarity_score": formatted.get("similarity_score"),
-        "distance_meters": formatted.get("distance_meters"),
-        "late_minutes": formatted.get("late_minutes"),
-        "decision_reason": formatted.get("decision_reason"),
-        "requires_human_oversight": formatted.get("requires_human_oversight"),
-        "human_oversight_status": formatted.get("human_oversight_status"),
-        "timestamp": formatted.get("timestamp"),
-        "legal_basis": formatted.get("legal_basis"),
-        "note": formatted.get("note"),
+        "id": saved.get("id"),
+        "student_id": saved.get("id"),
+        "nim": nim,
+        "name": user["name"],
+        "student_name": user["name"],
+        "session_id": int(session["id"]),
+        "course_code": session.get("course_code"),
+        "course_name": session.get("course_name"),
+        "room_name": session.get("room_name"),
+        "status": saved.get("status"),
+        "initial_rule_status": saved.get("status_awal"),
+        "status_awal": saved.get("status_awal"),
+        "status_uupdp": saved.get("status_uupdp"),
+        "similarity_score": saved.get("similarity_score"),
+        "distance_meters": saved.get("distance_meters"),
+        "late_minutes": saved.get("late_minutes"),
+        "gps_accuracy": saved.get("gps_accuracy"),
+        "decision_reason": saved.get("decision_reason"),
+        "requires_human_oversight": bool(saved.get("requires_human_oversight")),
+        "human_oversight_status": saved.get("human_oversight_status"),
+        "timestamp": saved.get("timestamp"),
+        "legal_basis": saved.get("legal_basis"),
+        "note": saved.get("note"),
+        "duplicate": duplicate,
+        "face": face_metadata,
+        "identity_check": identity_check,
+        "thresholds": {
+            "face_match": FACE_MATCH_THRESHOLD,
+            "on_time_max_minutes": MAX_ONTIME_LATE_MINUTES,
+            "late_max_minutes": MAX_VALID_LATE_MINUTES,
+            "radius_m": float(session.get("radius_m") or MAX_VALID_DISTANCE_METERS),
+        },
     }
 
 
+@app.post("/api/presensi/simulate")
+def simulate_presensi(
+    req: SimulateRequest, user: Dict[str, Any] = Depends(require_dosen)
+):
+    """
+    Dry-run the M1-M6 policy cases. Never writes to the attendance table.
+
+    These cases exercise the *rules*, not the face engine: their scores are
+    fixed parameters. Engine quality is measured separately by
+    ``scripts/calibrate_face.py``.
+    """
+    case = next((c for c in BENCHMARK_CASES if c["id"] == req.case_id.upper()), None)
+    if not case:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Kasus {req.case_id} tidak dikenal. Pilih M1-M6.",
+        )
+
+    evaluation = evaluate_presensi(
+        score=float(case["score"]),
+        distance_meters=float(case["distance"]),
+        late_minutes=float(case["late"]),
+        simulated_case=case["id"],
+    )
+    return {
+        "case_id": case["id"],
+        "nim": case["nim"],
+        "name": case["name"],
+        "keterangan": case["keterangan"],
+        "status": evaluation["status_uupdp"],
+        "status_awal": evaluation["status_awal"],
+        "status_uupdp": evaluation["status_uupdp"],
+        "similarity_score": case["score"],
+        "distance_meters": case["distance"],
+        "late_minutes": case["late"],
+        "requires_human_oversight": evaluation["requires_human_oversight"],
+        "human_oversight_status": evaluation["human_oversight_status"],
+        "decision_reason": evaluation["decision_reason"],
+        "legal_basis": LEGAL_BASIS_TEXT,
+        "persisted": False,
+    }
+
+
+# ==============================================================================
+# OVERSIGHT
+# ==============================================================================
 @app.get("/api/oversight")
 def get_oversight_list(user: Dict[str, Any] = Depends(require_dosen)):
-    """
-    Mengambil daftar presensi mahasiswa yang tertahan pada status PERLU_VERIFIKASI_DOSEN.
-    Menunggu keputusan verifikasi manual dosen pengampu (Human Oversight).
-    """
-    records = get_pending_oversight()
-    return [_format_attendance(r) for r in records]
+    return [_format_attendance(r) for r in get_pending_oversight()]
 
 
 @app.post("/api/oversight/resolve")
-def resolve_oversight_case(req: ResolveApiRequest, user: Dict[str, Any] = Depends(require_dosen)):
-    """
-    Menangani keputusan intervensi manusia (Dosen Pengampu):
-    - approved = True -> Mengesahkan kehadiran mahasiswa (HADIR / TERLAMBAT)
-    - approved = False -> Menolak presensi (TIDAK_SAH)
-
-    `resolved_by` selalu diambil dari identitas token, bukan dari body.
-    """
-    lecturer = user["name"] or req.resolved_by or req.lecturer_name or "Dosen Pengampu"
-    resolved_rec = resolve_oversight(
+def resolve_oversight_case(
+    req: ResolveApiRequest, user: Dict[str, Any] = Depends(require_dosen)
+):
+    lecturer = user["name"] or "Dosen Pengampu"
+    resolved = resolve_oversight(
         attendance_id=req.attendance_id,
         approved=req.approved,
         lecturer_note=req.lecturer_note,
         resolved_by=lecturer,
     )
-
-    if not resolved_rec:
+    if not resolved:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Presensi dengan ID {req.attendance_id} tidak ditemukan.",
         )
 
-    formatted = _format_attendance(resolved_rec)
+    formatted = _format_attendance(resolved)
     return {
         "success": True,
         "attendance_id": req.attendance_id,
@@ -518,110 +955,74 @@ def resolve_oversight_case(req: ResolveApiRequest, user: Dict[str, Any] = Depend
     }
 
 
+# ==============================================================================
+# BENCHMARK (read-only)
+# ==============================================================================
 @app.get("/api/benchmark")
 def get_benchmark_table():
-    """
-    Mengembalikan data pengujian benchmark resmi 6 kasus mahasiswa (M1 s.d. M6)
-    membandingkan Rancangan Awal vs Rancangan UU PDP (Human Oversight).
-    """
-    # Gunakan generator dari app.ml.benchmark jika tersedia, atau app.core.rules
-    if run_ml_benchmark is not None:
-        try:
-            ml_results = run_ml_benchmark()
-            formatted_cases = []
-            for item in ml_results:
-                formatted_cases.append({
-                    "case_id": item.get("case_id") or item.get("id"),
-                    "nim": item["nim"],
-                    "name": item["name"],
-                    "face_score": item.get("face_score") or item.get("similarity_score"),
-                    "distance_meters": item.get("distance_m") or item.get("distance_meters"),
-                    "late_minutes": item["late_minutes"],
-                    "condition_description": item.get("keterangan") or item.get("detail_kondisi", ""),
-                    "status_initial": item.get("rancangan_awal_status") or item.get("initial_rule", {}).get("status", "TIDAK_SAH"),
-                    "status_uupdp": item.get("rancangan_uu_pdp_status") or item.get("status_uupdp", "HADIR"),
-                    "requires_human_oversight": (item.get("rancangan_uu_pdp_status") == "PERLU_VERIFIKASI_DOSEN"),
-                    "ethical_legal_analysis": (
-                        item.get("analisis_uu_pdp")
-                        or item.get("rancangan_uu_pdp_alasan")
-                        or "Berdasarkan UU PDP Pasal 34, keputusan biometrik tidak boleh dilakukan sepihak secara otomatis."
-                    ),
-                    "pdp_article_reference": "UU No. 27/2022 Pasal 34 (Larangan Keputusan Otomatis Tunggal)",
-                    # Alias untuk kompatibilitas rules engine
-                    "status_awal": item.get("rancangan_awal_status") or item.get("initial_rule", {}).get("status", "TIDAK_SAH"),
-                    "keterangan": item.get("keterangan", ""),
-                    "alasan_awal": item.get("rancangan_awal_alasan", ""),
-                    "alasan_uupdp": item.get("rancangan_uu_pdp_alasan", ""),
-                })
-            return formatted_cases
-        except Exception as e:
-            logger.warning(f"Gagal menjalankan ml.benchmark: {e}, fallback ke core.rules.")
+    """M1-M6 policy comparison (read-only, no attendance rows created)."""
+    from app.ml.benchmark import run_benchmark
 
-    # Fallback ke core.rules jika ML engine belum di-load
-    from app.core.rules import run_rules_benchmark
-    rules_results = run_rules_benchmark()
-    formatted = []
-    for r in rules_results:
-        formatted.append({
-            "case_id": r["case_id"],
-            "nim": r["nim"],
-            "name": r["student_name"],
-            "face_score": r["score"],
-            "distance_meters": r["distance_meters"],
-            "late_minutes": r["late_minutes"],
-            "condition_description": r["keterangan"],
-            "status_initial": r["status_awal"],
-            "status_uupdp": r["status_uupdp"],
-            "requires_human_oversight": r["requires_human_oversight"],
-            "ethical_legal_analysis": (
-                "Berdasarkan UU PDP Pasal 34, keputusan biometrik yang merugikan mahasiswa harus melalui intervensi dosen."
-                if r["requires_human_oversight"]
-                else "Keputusan otomatis sah dan proporsional."
-            ),
-            "pdp_article_reference": "UU No. 27/2022 Pasal 34",
-            "status_awal": r["status_awal"],
-            "keterangan": r["keterangan"],
-            "alasan_awal": r["alasan_awal"],
-            "alasan_uupdp": r["alasan_uupdp"],
-        })
-    return formatted
+    results = run_benchmark()
+    return [
+        {
+            "case_id": item["case_id"],
+            "nim": item["nim"],
+            "name": item["name"],
+            "face_score": item["face_score"],
+            "distance_meters": item["distance_m"],
+            "late_minutes": item["late_minutes"],
+            "condition_description": item["detail_kondisi"],
+            "status_initial": item["rancangan_awal_status"],
+            "status_uupdp": item["rancangan_uu_pdp_status"],
+            "requires_human_oversight": item["requires_human_oversight"],
+            "ethical_legal_analysis": item["rancangan_uu_pdp_alasan"],
+            "pdp_article_reference": LEGAL_BASIS_TEXT,
+            "status_awal": item["rancangan_awal_status"],
+            "keterangan": item["keterangan"],
+            "alasan_awal": item["rancangan_awal_alasan"],
+            "alasan_uupdp": item["rancangan_uu_pdp_alasan"],
+        }
+        for item in results
+    ]
 
 
 @app.get("/api/benchmark/summary")
 def get_benchmark_summary_data():
-    """Mengembalikan ringkasan statistik komparatif benchmark."""
-    if get_benchmark_summary is not None:
-        try:
-            return get_benchmark_summary()
-        except Exception:
-            pass
-    return {
-        "total_cases": 6,
-        "cases_needing_oversight": 3,
-        "cases_saved": ["M3", "M4", "M5"],
-        "impact": "Mencegah mahasiswa gagal ujian akhir akibat keterbatasan sensor fisik dan model biometrik.",
-    }
+    from app.ml.benchmark import get_benchmark_summary
+
+    return get_benchmark_summary()
 
 
+# ==============================================================================
+# ATTENDANCE HISTORY & STATS
+# ==============================================================================
 @app.get("/api/attendances")
-def list_attendances(limit: int = 100, user: Dict[str, Any] = Depends(get_current_user)):
-    """Mengambil riwayat rekaman presensi. Mahasiswa hanya melihat miliknya sendiri."""
-    records = get_all_attendances(limit=limit)
-    if user["role"] == "mahasiswa":
-        records = [r for r in records if r.get("nim") == user.get("nim")]
+def list_attendances(
+    limit: int = 100, user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Students see only their own rows; the filter is applied server-side."""
+    limit = max(1, min(limit, 500))
+    nim_filter = user.get("nim") if user["role"] == "mahasiswa" else None
+    if user["role"] == "mahasiswa" and not nim_filter:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Akun mahasiswa tidak terhubung ke NIM.",
+        )
+    records = get_all_attendances(limit=limit, nim=nim_filter)
     return [_format_attendance(r) for r in records]
 
 
 @app.get("/api/stats")
 def get_stats(user: Dict[str, Any] = Depends(require_dosen)):
-    """Mengambil ringkasan statistik kehadiran (khusus dosen)."""
     return get_attendance_stats()
 
+
 # ==============================================================================
-# STATIC FILES & SPA FALLBACK (FOR REACT FRONTEND ON HUGGING FACE SPACES)
+# SPA STATIC FILES
 # ==============================================================================
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse  # noqa: E402
+from fastapi.staticfiles import StaticFiles  # noqa: E402
 
 static_candidates = [
     os.path.join(BASE_DIR, "static"),
@@ -636,9 +1037,12 @@ if static_root:
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def serve_spa_frontend(full_path: str):
-        # Jangan tangkap endpoint API atau dokumentasi Swagger
-        if full_path.startswith("api/") or full_path in ("health", "docs", "redoc", "openapi.json"):
-            from fastapi import HTTPException
+        if full_path.startswith("api/") or full_path in (
+            "health",
+            "docs",
+            "redoc",
+            "openapi.json",
+        ):
             raise HTTPException(status_code=404, detail="Not Found")
         target_file = os.path.join(static_root, full_path)
         if os.path.isfile(target_file):
@@ -646,5 +1050,4 @@ if static_root:
         index_html = os.path.join(static_root, "index.html")
         if os.path.isfile(index_html):
             return FileResponse(index_html)
-        from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail="Frontend build index.html not found")
+        raise HTTPException(status_code=404, detail="Frontend build not found")

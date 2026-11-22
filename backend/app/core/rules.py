@@ -1,27 +1,37 @@
 """
-Modul 13 Etika AI & UU Pelindungan Data Pribadi (UU No. 27 Tahun 2022)
-Engine Aturan Keputusan Presensi Kuliah Berbasis Pengenalan Wajah & Lokasi.
+Decision engine — Modul 13 Etika AI & UU Pelindungan Data Pribadi (UU 27/2022).
 
-Membandingkan:
-1. Rancangan Awal (Kaku / Otomatis Penuh)
-2. Rancangan UU PDP (Human Oversight / Pengawasan Manusia - Pasal 34)
+Single source of truth for attendance policy. Both the live presensi flow and
+the M1-M6 benchmark call into this module; ``app.ml.benchmark`` only reshapes
+the output for the API.
+
+Two designs are compared:
+  1. Rancangan Awal  — rigid, fully automatic, no human intervention.
+  2. Rancangan UU PDP — human oversight (Pasal 10 & 34) for ambiguous cases.
+
+Face scores are cosine similarities in [0, 1] produced by the ArcFace engine.
+Thresholds are model-specific and configurable through environment variables.
 """
 
-from typing import Dict, Any, Optional, List
+from __future__ import annotations
+
+import os
+from datetime import datetime, timezone
 from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
 
 # ==============================================================================
-# KONSTANTA AMBANG BATAS SISTEM
+# THRESHOLDS
 # ==============================================================================
-FACE_MATCH_THRESHOLD: float = 0.85       # Ambang kemiripan wajah minimal standar
-FACE_BORDERLINE_MIN: float = 0.70        # Ambang batas abu-abu (borderline) wajah
-FACE_MIN_PLAUSIBLE: float = 0.35         # Batas minimal wajah masuk akal (di bawah ini = wajah orang lain)
+FACE_MATCH_THRESHOLD: float = float(os.getenv("FACE_MATCH_THRESHOLD", "0.45"))
+FACE_BORDERLINE_MIN: float = float(os.getenv("FACE_BORDERLINE_MIN", "0.30"))
+FACE_MIN_PLAUSIBLE: float = float(os.getenv("FACE_MIN_PLAUSIBLE", "0.15"))
 
-MAX_VALID_DISTANCE: float = 50.0         # Radius valid ruang kuliah (meter)
-MAX_OVERSIGHT_DISTANCE: float = 100.0    # Batas toleransi GPS drift gedung beton (meter)
+MAX_VALID_DISTANCE: float = float(os.getenv("MAX_VALID_DISTANCE_METERS", "50"))
+MAX_OVERSIGHT_DISTANCE: float = float(os.getenv("MAX_OVERSIGHT_DISTANCE_METERS", "100"))
 
-MAX_ONTIME_LATE_MINUTES: float = 15.0    # Toleransi status Hadir (0-15 menit)
-MAX_VALID_LATE_MINUTES: float = 30.0     # Toleransi status Terlambat (16-30 menit)
+MAX_ONTIME_LATE_MINUTES: float = float(os.getenv("MAX_ONTIME_LATE_MINUTES", "15"))
+MAX_VALID_LATE_MINUTES: float = float(os.getenv("MAX_VALID_LATE_MINUTES", "30"))
 
 
 class AttendanceStatus(str, Enum):
@@ -39,30 +49,63 @@ class HumanOversightStatus(str, Enum):
 
 
 # ==============================================================================
-# 1. EVALUASI RANCANGAN AWAL (KAKU - OTOMATIS TUNGGAL)
+# TIME HELPERS
+# ==============================================================================
+def _as_utc(value: Any) -> datetime:
+    """Coerce a datetime / ISO string into a timezone-aware UTC datetime."""
+    if isinstance(value, datetime):
+        dt = value
+    else:
+        text = str(value).strip()
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        dt = datetime.fromisoformat(text)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def compute_late_minutes(
+    starts_at: Any,
+    now: Optional[datetime] = None,
+    grace_minutes: float = 0.0,
+) -> float:
+    """
+    Minutes between the session start and the server clock.
+
+    Returns 0.0 when the student is early. The client can never supply this
+    value; it is always derived from the session schedule on the server.
+    """
+    now_utc = _as_utc(now) if now is not None else datetime.now(timezone.utc)
+    start_utc = _as_utc(starts_at)
+    delta = (now_utc - start_utc).total_seconds() / 60.0 - grace_minutes
+    return round(max(0.0, delta), 1)
+
+
+# ==============================================================================
+# 1. RANCANGAN AWAL (RIGID, NO HUMAN OVERSIGHT)
 # ==============================================================================
 def evaluate_rancangan_awal(
     score: float,
     distance_meters: float,
     late_minutes: float,
-) -> tuple[AttendanceStatus, str]:
+    radius_meters: float = MAX_VALID_DISTANCE,
+) -> Tuple[AttendanceStatus, str]:
     """
-    Rancangan Awal dari bagian akademik:
-    - Wajah cocok: skor >= 0.85
-    - Lokasi valid: jarak <= 50m
-    - Hadir: Wajah cocok & Lokasi valid & Terlambat <= 15m
-    - Terlambat: Wajah cocok & Lokasi valid & 15m < Terlambat <= 30m
-    - Selain itu: TIDAK SAH (Kegagalan > 25% membatalkan hak ujian)
+    Rigid baseline: face >= threshold, inside the radius, on time.
+
+    Any ambiguity is rejected automatically — this is the design the UU PDP
+    analysis argues against.
     """
     face_valid = score >= FACE_MATCH_THRESHOLD
-    loc_valid = distance_meters <= MAX_VALID_DISTANCE
+    loc_valid = distance_meters <= radius_meters
 
     if not face_valid or not loc_valid:
         reasons = []
         if not face_valid:
-            reasons.append(f"Skor wajah {score:.2f} < {FACE_MATCH_THRESHOLD}")
+            reasons.append(f"Skor wajah {score:.2f} < {FACE_MATCH_THRESHOLD:.2f}")
         if not loc_valid:
-            reasons.append(f"Jarak {distance_meters:.1f}m > {MAX_VALID_DISTANCE}m")
+            reasons.append(f"Jarak {distance_meters:.1f}m > {radius_meters:.0f}m")
         return (
             AttendanceStatus.TIDAK_SAH,
             f"Presensi ditolak otomatis: {', '.join(reasons)}",
@@ -71,142 +114,153 @@ def evaluate_rancangan_awal(
     if late_minutes <= MAX_ONTIME_LATE_MINUTES:
         return (
             AttendanceStatus.HADIR,
-            f"Wajah cocok ({score:.2f}), lokasi valid ({distance_meters:.1f}m), tepat waktu ({late_minutes}m).",
+            f"Wajah cocok ({score:.2f}), lokasi valid ({distance_meters:.1f}m), "
+            f"tepat waktu ({late_minutes:.0f} menit).",
         )
-    elif late_minutes <= MAX_VALID_LATE_MINUTES:
+    if late_minutes <= MAX_VALID_LATE_MINUTES:
         return (
             AttendanceStatus.TERLAMBAT,
-            f"Wajah cocok ({score:.2f}), lokasi valid ({distance_meters:.1f}m), terlambat {late_minutes} menit (toleransi 16-30m).",
+            f"Wajah cocok ({score:.2f}), lokasi valid ({distance_meters:.1f}m), "
+            f"terlambat {late_minutes:.0f} menit (toleransi 16-30 menit).",
         )
-    else:
-        return (
-            AttendanceStatus.TIDAK_SAH,
-            f"Terlambat {late_minutes} menit melebihi batas toleransi {MAX_VALID_LATE_MINUTES} menit.",
-        )
+    return (
+        AttendanceStatus.TIDAK_SAH,
+        f"Terlambat {late_minutes:.0f} menit melebihi batas {MAX_VALID_LATE_MINUTES:.0f} menit.",
+    )
 
 
 # ==============================================================================
-# 2. EVALUASI RANCANGAN UU PDP (HUMAN OVERSIGHT - PASAL 34)
+# 2. RANCANGAN UU PDP (HUMAN OVERSIGHT)
 # ==============================================================================
 def evaluate_rancangan_uupdp(
     score: float,
     distance_meters: float,
     late_minutes: float,
     simulated_case: Optional[str] = None,
-) -> tuple[AttendanceStatus, str, bool, str]:
+    radius_meters: float = MAX_VALID_DISTANCE,
+    oversight_radius_meters: float = MAX_OVERSIGHT_DISTANCE,
+) -> Tuple[AttendanceStatus, str, bool, str]:
     """
-    Rancangan Berdasarkan Prinsip Etika AI & UU PDP No. 27/2022 Pasal 34:
-    - Melarang keputusan otomatis tunggal yang merugikan subjek data (mahasiswa).
-    - Menghadirkan mekanisme Human Oversight (Verifikasi Dosen) untuk anomali:
-      * M3 (Borderline Face): 0.70 <= skor < 0.85 karena kacamata baru / redup.
-      * M4 (GPS Drift): Jarak 50m - 100m akibat refleksi sinyal gedung beton.
-      * M5 (Old Profile): Wajah terdeteksi berbeda (skor 0.35 - 0.70) karena foto profil lama 6 tahun.
-    - Pelanggaran fatal tetap TIDAK SAH (Jarak > 100m, Terlambat > 30m, Skor < 0.35).
+    UU PDP design: only objective, clearly attributable failures are rejected
+    automatically. Ambiguity is escalated to the lecturer.
 
-    Returns:
-        (status, reason, requires_human_oversight, legal_note)
+    Fatal (auto-reject):
+      * late > 30 minutes
+      * distance > oversight radius (outside campus perimeter)
+      * score < FACE_MIN_PLAUSIBLE (identity does not correlate at all)
+
+    Human oversight:
+      * borderline face score (glasses / poor lighting)
+      * GPS drift inside a concrete building
+      * stale profile photo / natural appearance change
+
+    Returns (status, reason, requires_oversight, legal_basis).
     """
-    legal_basis = "UU PDP Pasal 34 (Hak atas intervensi manusia terhadap keputusan otomatis biometrik)"
+    legal_basis = (
+        "UU 27/2022 Pasal 10 (hak keberatan atas keputusan otomatis) dan "
+        "Pasal 34 (kewajiban penilaian dampak untuk pemrosesan berisiko tinggi)."
+    )
 
-    # Cek pelanggaran fatal terlebih dahulu
+    # --- Fatal, objective violations -----------------------------------------
     if late_minutes > MAX_VALID_LATE_MINUTES:
         return (
             AttendanceStatus.TIDAK_SAH,
-            f"Pelanggaran fatal waktu: Keterlambatan {late_minutes}m melebihi batas maksimal {MAX_VALID_LATE_MINUTES}m.",
+            f"Pelanggaran waktu: keterlambatan {late_minutes:.0f} menit melebihi "
+            f"batas {MAX_VALID_LATE_MINUTES:.0f} menit.",
             False,
-            "Pelanggaran objektif waktu perkuliahan, tidak memenuhi kualifikasi presensi.",
+            "Pelanggaran objektif jadwal perkuliahan.",
         )
 
-    if distance_meters > MAX_OVERSIGHT_DISTANCE:
+    if distance_meters > oversight_radius_meters:
         return (
             AttendanceStatus.TIDAK_SAH,
-            f"Pelanggaran fatal lokasi: Jarak {distance_meters:.1f}m jauh di luar area kampus (> {MAX_OVERSIGHT_DISTANCE}m). Indikasi titip absen.",
+            f"Pelanggaran lokasi: jarak {distance_meters:.1f}m di luar perimeter "
+            f"({oversight_radius_meters:.0f}m). Indikasi presensi jarak jauh.",
             False,
             "Terdeteksi di luar perimeter fisik institusi.",
         )
 
-    if score < FACE_MIN_PLAUSIBLE and simulated_case != "M5":
+    if score < FACE_MIN_PLAUSIBLE:
         return (
             AttendanceStatus.TIDAK_SAH,
-            f"Pelanggaran identitas biometrik: Skor kemiripan {score:.2f} < {FACE_MIN_PLAUSIBLE}. Wajah tidak dikenali sama sekali.",
+            f"Identitas tidak cocok: skor {score:.2f} < batas minimal "
+            f"{FACE_MIN_PLAUSIBLE:.2f}.",
             False,
-            "Data biometrik tidak berkorelasi dengan subjek data terdaftar.",
+            "Data biometrik tidak berkorelasi dengan subjek terdaftar.",
         )
 
-    # 1. KASUS NORMAL (HADIR / TERLAMBAT OTOMATIS SAH)
-    if score >= FACE_MATCH_THRESHOLD and distance_meters <= MAX_VALID_DISTANCE:
+    # --- Clear pass -----------------------------------------------------------
+    if score >= FACE_MATCH_THRESHOLD and distance_meters <= radius_meters:
         if late_minutes <= MAX_ONTIME_LATE_MINUTES:
             return (
                 AttendanceStatus.HADIR,
-                f"Presensi Sah: Wajah cocok ({score:.2f} >= {FACE_MATCH_THRESHOLD}), lokasi valid ({distance_meters:.1f}m <= {MAX_VALID_DISTANCE}m), tepat waktu ({late_minutes}m).",
+                f"Presensi sah: wajah cocok ({score:.2f} >= {FACE_MATCH_THRESHOLD:.2f}), "
+                f"lokasi valid ({distance_meters:.1f}m <= {radius_meters:.0f}m), "
+                f"tepat waktu ({late_minutes:.0f} menit).",
                 False,
-                "Pemrosesan otomatis berhasil tanpa potensi kerugian mahasiswa.",
+                "Pemrosesan otomatis tidak menimbulkan kerugian bagi mahasiswa.",
             )
-        else:
-            return (
-                AttendanceStatus.TERLAMBAT,
-                f"Presensi Terlambat: Wajah cocok ({score:.2f}), lokasi valid ({distance_meters:.1f}m), keterlambatan {late_minutes} menit.",
-                False,
-                "Sesuai regulasi akademik keterlambatan 16-30 menit.",
-            )
-
-    # 2. KASUS HUMAN OVERSIGHT (ESKALASI KE DOSEN PENGAMPU)
-    oversight_reasons = []
-
-    # Kasus M3: Borderline wajah karena kacamata baru / redup
-    if FACE_BORDERLINE_MIN <= score < FACE_MATCH_THRESHOLD and distance_meters <= MAX_VALID_DISTANCE:
-        oversight_reasons.append(
-            f"Skor wajah ambang batas ({score:.2f} dalam rentang {FACE_BORDERLINE_MIN}-{FACE_MATCH_THRESHOLD}). "
-            "Kemungkinan kacamata baru, perubahan tata rias, atau pencahayaan redup di ruang kelas."
+        return (
+            AttendanceStatus.TERLAMBAT,
+            f"Presensi terlambat: wajah cocok ({score:.2f}), lokasi valid "
+            f"({distance_meters:.1f}m), keterlambatan {late_minutes:.0f} menit.",
+            False,
+            "Sesuai regulasi akademik keterlambatan 16-30 menit.",
         )
 
-    # Kasus M4: GPS Drift di dalam gedung bertulang beton
-    if score >= FACE_MATCH_THRESHOLD and MAX_VALID_DISTANCE < distance_meters <= MAX_OVERSIGHT_DISTANCE:
-        oversight_reasons.append(
-            f"Kemiripan wajah sangat tinggi ({score:.2f}), namun posisi GPS ({distance_meters:.1f}m) berada pada rentang drift gedung "
-            f"({MAX_VALID_DISTANCE}m-{MAX_OVERSIGHT_DISTANCE}m). Mahasiswa kemungkinan duduk di sudut ruang kelas beton."
+    # --- Ambiguity: escalate to a human --------------------------------------
+    reasons: List[str] = []
+
+    if FACE_BORDERLINE_MIN <= score < FACE_MATCH_THRESHOLD and distance_meters <= radius_meters:
+        reasons.append(
+            f"Skor wajah ambang batas ({score:.2f} dalam rentang "
+            f"{FACE_BORDERLINE_MIN:.2f}-{FACE_MATCH_THRESHOLD:.2f}); kemungkinan "
+            "kacamata baru, perubahan tata rias, atau pencahayaan redup."
         )
 
-    # Kasus M5: Foto profil berumur 6 tahun (skor rendah tapi mahasiswa hadir secara fisik)
-    if (score < FACE_BORDERLINE_MIN or simulated_case == "M5") and distance_meters <= MAX_VALID_DISTANCE and late_minutes <= MAX_ONTIME_LATE_MINUTES:
-        oversight_reasons.append(
-            f"Anomali biometrik ({score:.2f} < {FACE_BORDERLINE_MIN}) dengan lokasi dan waktu yang sah. "
-            "Foto profil mahasiswa kemungkinan berumur lama (> 5 tahun) saat mendaftar awal. Perlu konfirmasi visual dosen."
+    if score >= FACE_MATCH_THRESHOLD and radius_meters < distance_meters <= oversight_radius_meters:
+        reasons.append(
+            f"Wajah cocok ({score:.2f}) namun GPS {distance_meters:.1f}m berada di "
+            f"rentang drift gedung ({radius_meters:.0f}-{oversight_radius_meters:.0f}m)."
         )
 
-    # Tangkap kombinasi anomali lainnya dalam perimeter aman
-    if not oversight_reasons and (distance_meters <= MAX_OVERSIGHT_DISTANCE and late_minutes <= MAX_VALID_LATE_MINUTES):
-        oversight_reasons.append(
-            f"Kondisi ambigu terdeteksi: Skor={score:.2f}, Jarak={distance_meters:.1f}m, Terlambat={late_minutes}m. "
-            "Membutuhkan peninjauan manual untuk mencegah kerugian sepihak mahasiswa."
+    if score < FACE_BORDERLINE_MIN and distance_meters <= radius_meters:
+        reasons.append(
+            f"Skor biometrik rendah ({score:.2f}) dengan lokasi dan waktu yang sah; "
+            "kemungkinan foto profil lama atau perubahan fisik wajar."
         )
 
-    reason_str = " | ".join(oversight_reasons)
+    if not reasons:
+        reasons.append(
+            f"Kombinasi parameter ambigu (skor={score:.2f}, jarak={distance_meters:.1f}m, "
+            f"terlambat={late_minutes:.0f} menit); memerlukan peninjauan manusia."
+        )
+
     return (
         AttendanceStatus.PERLU_VERIFIKASI_DOSEN,
-        f"Dialihkan ke Dosen Pengampu: {reason_str}",
+        "Dialihkan ke Dosen Pengampu: " + " | ".join(reasons),
         True,
         legal_basis,
     )
 
 
 # ==============================================================================
-# 3. FUNGSI EVALUASI TERPADU & BENCHMARK RESMI MODUL 13
+# 3. COMBINED EVALUATION
 # ==============================================================================
 def evaluate_presensi(
     score: float,
     distance_meters: float,
     late_minutes: float,
     simulated_case: Optional[str] = None,
+    radius_meters: float = MAX_VALID_DISTANCE,
+    oversight_radius_meters: float = MAX_OVERSIGHT_DISTANCE,
 ) -> Dict[str, Any]:
-    """
-    Menjalankan evaluasi ganda (Rancangan Awal vs Rancangan UU PDP)
-    dan mengembalikan perbandingan komparatif lengkap.
-    """
+    """Run both designs and return a comparative result."""
     status_awal, reason_awal = evaluate_rancangan_awal(
         score=score,
         distance_meters=distance_meters,
         late_minutes=late_minutes,
+        radius_meters=radius_meters,
     )
 
     status_uupdp, reason_uupdp, requires_oversight, legal_note = evaluate_rancangan_uupdp(
@@ -214,6 +268,8 @@ def evaluate_presensi(
         distance_meters=distance_meters,
         late_minutes=late_minutes,
         simulated_case=simulated_case,
+        radius_meters=radius_meters,
+        oversight_radius_meters=oversight_radius_meters,
     )
 
     return {
@@ -237,14 +293,16 @@ def evaluate_presensi(
 
 
 # ==============================================================================
-# 4. DATA BENCHMARK RESMI 6 KASUS MAHASISWA (M1 - M6)
+# 4. OFFICIAL BENCHMARK CASES (M1 - M6)
 # ==============================================================================
+# Scores are expressed on the ArcFace cosine scale:
+#   >= 0.45 match, 0.30-0.45 borderline, 0.15-0.30 stale/low, < 0.15 mismatch.
 BENCHMARK_CASES: List[Dict[str, Any]] = [
     {
         "id": "M1",
         "name": "Arya Pratama",
         "nim": "210101",
-        "score": 0.92,
+        "score": 0.82,
         "distance": 20.0,
         "late": 5.0,
         "keterangan": "Kondisi ideal, pencahayaan baik, tepat waktu.",
@@ -253,25 +311,25 @@ BENCHMARK_CASES: List[Dict[str, Any]] = [
         "id": "M2",
         "name": "Budi Santoso",
         "nim": "210102",
-        "score": 0.85,
+        "score": 0.45,
         "distance": 50.0,
         "late": 15.0,
-        "keterangan": "Tepat berada di ambang batas skor (0.85), jarak (50m), dan waktu (15m).",
+        "keterangan": "Tepat di ambang batas skor (0.45), jarak (50m), dan waktu (15m).",
     },
     {
         "id": "M3",
         "name": "Citra Dewi",
         "nim": "210103",
-        "score": 0.78,
+        "score": 0.36,
         "distance": 15.0,
         "late": 3.0,
-        "keterangan": "Kacamata baru dan pencahayaan kelas redup (skor 0.78 di bawah 0.85).",
+        "keterangan": "Kacamata baru dan pencahayaan redup (skor 0.36 di bawah 0.45).",
     },
     {
         "id": "M4",
         "name": "Dodi Wijaya",
         "nim": "210104",
-        "score": 0.95,
+        "score": 0.88,
         "distance": 70.0,
         "late": 0.0,
         "keterangan": "Duduk di sudut ruang besar gedung beton, GPS drift 70m.",
@@ -280,16 +338,16 @@ BENCHMARK_CASES: List[Dict[str, Any]] = [
         "id": "M5",
         "name": "Eka Saputra",
         "nim": "210105",
-        "score": 0.40,
+        "score": 0.20,
         "distance": 10.0,
         "late": 2.0,
-        "keterangan": "Foto profil lama (berumur 6 tahun saat maba), hadir fisik di kelas.",
+        "keterangan": "Foto profil lama (6 tahun), hadir fisik di kelas.",
     },
     {
         "id": "M6",
         "name": "Fajar Nugraha",
         "nim": "210106",
-        "score": 0.91,
+        "score": 0.80,
         "distance": 30.0,
         "late": 28.0,
         "keterangan": "Hadir terlambat 28 menit (dalam rentang 16-30 menit).",
@@ -298,9 +356,7 @@ BENCHMARK_CASES: List[Dict[str, Any]] = [
 
 
 def run_rules_benchmark() -> List[Dict[str, Any]]:
-    """
-    Menghasilkan tabel benchmark komparatif resmi Modul 13 untuk kasus M1 - M6.
-    """
+    """Comparative M1-M6 table (policy simulation only, no images involved)."""
     results = []
     for case in BENCHMARK_CASES:
         eval_result = evaluate_presensi(
@@ -309,23 +365,25 @@ def run_rules_benchmark() -> List[Dict[str, Any]]:
             late_minutes=case["late"],
             simulated_case=case["id"],
         )
-        results.append({
-            "case_id": case["id"],
-            "student_name": case["name"],
-            "nim": case["nim"],
-            "score": case["score"],
-            "distance_meters": case["distance"],
-            "late_minutes": case["late"],
-            "keterangan": case["keterangan"],
-            "status_awal": eval_result["status_awal"],
-            "status_uupdp": eval_result["status_uupdp"],
-            "selisih_kebijakan": (
-                "INTERVENSI DOSEN DIBUTUHKAN"
-                if eval_result["requires_human_oversight"]
-                else "SEPAKAT"
-            ),
-            "alasan_awal": eval_result["decision_reason_awal"],
-            "alasan_uupdp": eval_result["decision_reason"],
-            "requires_human_oversight": eval_result["requires_human_oversight"],
-        })
+        results.append(
+            {
+                "case_id": case["id"],
+                "student_name": case["name"],
+                "nim": case["nim"],
+                "score": case["score"],
+                "distance_meters": case["distance"],
+                "late_minutes": case["late"],
+                "keterangan": case["keterangan"],
+                "status_awal": eval_result["status_awal"],
+                "status_uupdp": eval_result["status_uupdp"],
+                "selisih_kebijakan": (
+                    "INTERVENSI DOSEN DIBUTUHKAN"
+                    if eval_result["requires_human_oversight"]
+                    else "SEPAKAT"
+                ),
+                "alasan_awal": eval_result["decision_reason_awal"],
+                "alasan_uupdp": eval_result["decision_reason"],
+                "requires_human_oversight": eval_result["requires_human_oversight"],
+            }
+        )
     return results

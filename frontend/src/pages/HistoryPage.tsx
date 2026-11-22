@@ -189,7 +189,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ role, nim }) => {
                             {item.name || 'Mahasiswa'}
                           </span>
                           <span className="text-[10px] text-slate-400 block font-mono">
-                            NIM: {item.nim} {item.simulated_case ? `• Kasus ${item.simulated_case}` : ''}
+                            NIM: {item.nim} {item.course_name ? `• ${item.course_name}` : ''} {item.simulated_case ? `• Kasus ${item.simulated_case}` : ''}
                           </span>
                         </div>
                       </div>

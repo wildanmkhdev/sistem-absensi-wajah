@@ -1,5 +1,5 @@
 import React from 'react';
-import { Camera, ShieldCheck, Award, UserPlus, History, LogOut } from 'lucide-react';
+import { Award, BookOpen, Camera, History, LogOut, ShieldCheck, UserPlus } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { Role } from '../auth';
 
@@ -31,6 +31,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const navItems: NavItem[] = isDosen
     ? [
+        { id: 'sessions', label: 'Sesi Kuliah', icon: BookOpen },
         {
           id: 'oversight',
           label: 'Review Dosen',
@@ -43,7 +44,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     : [
         { id: 'presensi', label: 'Presensi', icon: Camera },
         { id: 'history', label: 'Riwayat Saya', icon: History },
-        { id: 'register', label: 'Daftar Wajah', icon: UserPlus },
+        { id: 'register', label: 'Data Wajah', icon: UserPlus },
       ];
 
   return (
@@ -53,7 +54,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Logo & App Title */}
           <div
             className="flex items-center space-x-2.5 cursor-pointer group"
-            onClick={() => setActiveTab(isDosen ? 'oversight' : 'presensi')}
+            onClick={() => setActiveTab(isDosen ? 'sessions' : 'presensi')}
           >
             <div className="w-9 h-9 rounded-xl bg-teal-600 flex items-center justify-center text-white shadow-xs">
               <Camera className="w-4 h-4" />
@@ -63,7 +64,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </span>
           </div>
 
-          {/* Desktop Navigation Tabs (Hidden on small mobile screens since mobile has bottom nav) */}
+          {/* Desktop Navigation Tabs */}
           <nav className="hidden sm:flex items-center space-x-1">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -95,17 +96,21 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200/60 whitespace-nowrap">
               {isDosen ? 'Dosen' : 'Mahasiswa'}
             </span>
-            <span className="max-w-[120px] truncate text-xs font-bold text-slate-700" title={sessionName}>
+            <span
+              className="max-w-[120px] truncate text-xs font-bold text-slate-700"
+              title={sessionName}
+            >
               {sessionName}
             </span>
             <button
               type="button"
               onClick={onLogout}
-              aria-label="Keluar"
-              title="Keluar"
-              className="flex items-center justify-center w-8 h-8 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+              aria-label="Keluar / Ganti Akun"
+              title="Keluar / Ganti Akun"
+              className="flex items-center space-x-1 px-2.5 py-1 rounded-xl text-xs font-bold text-slate-600 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 transition cursor-pointer"
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Keluar</span>
             </button>
           </div>
         </div>

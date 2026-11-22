@@ -20,12 +20,12 @@ Presensi perkuliahan berbasis pengenalan wajah dan GPS dengan keputusan otomatis
 - Enam kasus benchmark (M1–M6) yang membandingkan rancangan awal dengan rancangan UU PDP.
 - Riwayat presensi kelas dan pendaftaran wajah mahasiswa.
 
-## Role
+## Role & Autentikasi
 
-- **Mahasiswa** — Presensi, Riwayat Saya, Daftar Wajah.
-- **Dosen** — Review Dosen, Riwayat Kelas, Kasus M1–M6.
+- **Mahasiswa** (`nim` / default credential mahasiswa) — Presensi Sesi Aktif, Riwayat Presensi Saya, Pendaftaran & Penghapusan Biometrik Wajah (UU PDP).
+- **Dosen** (`dosen` / `dosen123`) — Manajemen Sesi Kuliah & Geofence, Review Dosen (Human Oversight Pasal 34), Riwayat Kelas Lengkap, Benchmark Studi Kasus M1–M6 (Dry-Run).
 
-Pemilihan role hanya pembatas tampilan untuk demo; tidak ada autentikasi password.
+Autentikasi menggunakan JSON Web Token (JWT) dengan penegakan `AUTH_SECRET`. Identitas presensi diikat langsung ke klaim token sesi untuk mencegah spoofing NIM.
 
 ## Jalankan lokal
 

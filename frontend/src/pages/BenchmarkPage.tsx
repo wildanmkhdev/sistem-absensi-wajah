@@ -1,21 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { RefreshCw, ShieldCheck } from 'lucide-react';
-import { fetchBenchmark, BENCHMARK_CASES, submitPresensi } from '../api';
-import { DEFAULT_CLASSROOM } from '../config';
-import { AttendanceSuccessModal } from '../components/AttendanceSuccessModal';
+import React, { useEffect, useState } from 'react';
+import {
+  Award,
+  RefreshCw,
+  Scale,
+  ShieldCheck,
+  X,
+} from 'lucide-react';
+import { fetchBenchmark, simulateCase } from '../api';
 import { BenchmarkDetailModal } from '../components/BenchmarkDetailModal';
-import type { BenchmarkCase, PresensiResponse } from '../types';
+import type { BenchmarkCase, SimulatedPresensiResponse } from '../types';
 
-interface BenchmarkPageProps {
-  onAttendanceCreated?: () => void;
-}
-
-export const BenchmarkPage: React.FC<BenchmarkPageProps> = ({ onAttendanceCreated }) => {
-  const [benchmarkData, setBenchmarkData] = useState<BenchmarkCase[]>(BENCHMARK_CASES);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+export const BenchmarkPage: React.FC = () => {
+  const [benchmarkData, setBenchmarkData] = useState<BenchmarkCase[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [runningCaseId, setRunningCaseId] = useState<string | null>(null);
   const [detailItem, setDetailItem] = useState<BenchmarkCase | null>(null);
-  const [simulationResult, setSimulationResult] = useState<PresensiResponse | null>(null);
+  const [simulationResult, setSimulationResult] = useState<SimulatedPresensiResponse | null>(null);
   const [simulationError, setSimulationError] = useState<string | null>(null);
 
   const loadBenchmark = async () => {
@@ -31,24 +31,15 @@ export const BenchmarkPage: React.FC<BenchmarkPageProps> = ({ onAttendanceCreate
   };
 
   useEffect(() => {
-    loadBenchmark();
+    void loadBenchmark();
   }, []);
 
   const runSimulation = async (item: BenchmarkCase) => {
     setRunningCaseId(item.case_id);
     setSimulationError(null);
     try {
-      const res = await submitPresensi({
-        nim: item.nim,
-        name: item.name,
-        face_image: null,
-        latitude: DEFAULT_CLASSROOM.latitude,
-        longitude: DEFAULT_CLASSROOM.longitude,
-        late_minutes: item.late_minutes,
-        simulated_case: item.case_id,
-      });
+      const res = await simulateCase(item.case_id);
       setSimulationResult(res);
-      onAttendanceCreated?.();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Terjadi kesalahan tidak dikenal.';
       setSimulationError(`Simulasi gagal: ${message}`);
@@ -81,7 +72,7 @@ export const BenchmarkPage: React.FC<BenchmarkPageProps> = ({ onAttendanceCreate
         </div>
 
         <button
-          onClick={loadBenchmark}
+          onClick={() => void loadBenchmark()}
           disabled={isLoading}
           className="flex items-center space-x-1.5 text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 px-3.5 py-2 rounded-xl border border-slate-200 transition shadow-xs self-start sm:self-center cursor-pointer"
         >
@@ -94,8 +85,8 @@ export const BenchmarkPage: React.FC<BenchmarkPageProps> = ({ onAttendanceCreate
       <p className="flex items-center space-x-2 text-xs text-slate-600 bg-white rounded-2xl border border-slate-200/80 px-4 py-3 shadow-xs">
         <ShieldCheck className="w-4 h-4 text-teal-600 shrink-0" />
         <span>
-          <strong className="font-bold text-slate-800">3 dari 6</strong> kasus dialihkan ke dosen;{' '}
-          <strong className="font-bold text-slate-800">3</strong> diputus otomatis.
+          <strong className="font-bold text-slate-800">3 dari 6</strong> kasus dialihkan ke verifikasi dosen;{' '}
+          <strong className="font-bold text-slate-800">3</strong> diputus otomatis. Simulasi berjalan dalam mode <em>dry-run</em> tanpa mengotori tabel kehadiran nyata.
         </span>
       </p>
 
@@ -113,7 +104,9 @@ export const BenchmarkPage: React.FC<BenchmarkPageProps> = ({ onAttendanceCreate
 
       {/* Benchmark Table */}
       <div className="bg-white rounded-xl border border-slate-200/80 p-4 shadow-xs space-y-3.5">
-        <h3 className="text-xs sm:text-sm font-bold text-slate-800">Tabel Skenario Pengujian Resmi</h3>
+        <h3 className="text-xs sm:text-sm font-bold text-slate-800">
+          Tabel Skenario Pengujian Resmi
+        </h3>
 
         <div className="overflow-x-auto rounded-lg border border-slate-200/70">
           <table className="w-full text-left text-xs text-slate-600">
@@ -134,7 +127,9 @@ export const BenchmarkPage: React.FC<BenchmarkPageProps> = ({ onAttendanceCreate
                 const isRunning = runningCaseId === item.case_id;
                 return (
                   <tr key={item.case_id} className="hover:bg-slate-50/80 transition">
-                    <td className="px-3 py-3 font-extrabold text-slate-800 text-xs">{item.case_id}</td>
+                    <td className="px-3 py-3 font-extrabold text-slate-800 text-xs">
+                      {item.case_id}
+                    </td>
 
                     <td className="px-3.5 py-3">
                       <div className="font-bold text-slate-800 text-xs">{item.name}</div>
@@ -196,7 +191,7 @@ export const BenchmarkPage: React.FC<BenchmarkPageProps> = ({ onAttendanceCreate
                           disabled={isRunning || runningCaseId !== null}
                           className="text-[11px] font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 px-2.5 py-1 rounded-md transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          {isRunning ? 'Menjalankan...' : 'Jalankan'}
+                          {isRunning ? 'Menguji...' : 'Uji Kasus'}
                         </button>
                       </div>
                     </td>
@@ -217,11 +212,96 @@ export const BenchmarkPage: React.FC<BenchmarkPageProps> = ({ onAttendanceCreate
         />
       )}
 
+      {/* Modal Hasil Simulasi Dry-Run */}
       {simulationResult && (
-        <AttendanceSuccessModal
-          result={simulationResult}
-          onClose={() => setSimulationResult(null)}
-        />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-4">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-teal-50 text-teal-700 flex items-center justify-center font-bold">
+                  <Award className="w-5 h-5 text-teal-600" />
+                </div>
+                <div>
+                  <span className="text-[10px] font-mono font-bold text-teal-700 bg-teal-50 border border-teal-200/60 px-2 py-0.5 rounded">
+                    Simulasi Dry-Run Kasus {simulationResult.case_id}
+                  </span>
+                  <h3 className="text-base font-bold text-slate-800 mt-1">
+                    {simulationResult.name} ({simulationResult.nim})
+                  </h3>
+                </div>
+              </div>
+              <button
+                onClick={() => setSimulationResult(null)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-full hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-center text-xs">
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <span className="text-[10px] text-slate-400 font-bold block uppercase">
+                  Rancangan Awal (Kaku)
+                </span>
+                <span
+                  className={`inline-block mt-1 font-bold px-2 py-0.5 rounded text-xs ${
+                    simulationResult.status_awal === 'HADIR'
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : simulationResult.status_awal === 'TERLAMBAT'
+                      ? 'bg-amber-100 text-amber-800'
+                      : 'bg-rose-100 text-rose-800'
+                  }`}
+                >
+                  {simulationResult.status_awal}
+                </span>
+              </div>
+
+              <div className="bg-teal-50/60 p-3 rounded-xl border border-teal-200">
+                <span className="text-[10px] text-teal-700 font-bold block uppercase">
+                  Rancangan UU PDP (Berkeadilan)
+                </span>
+                <span
+                  className={`inline-block mt-1 font-bold px-2 py-0.5 rounded text-xs ${
+                    simulationResult.status_uupdp === 'HADIR'
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : simulationResult.status_uupdp === 'TERLAMBAT'
+                      ? 'bg-amber-100 text-amber-800'
+                      : 'bg-teal-100 text-teal-800'
+                  }`}
+                >
+                  {simulationResult.status_uupdp.replace(/_/g, ' ')}
+                </span>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80 text-xs space-y-1">
+              <span className="font-bold text-slate-700 block">Alasan Keputusan Sistem:</span>
+              <p className="text-slate-600 leading-relaxed text-[11px]">
+                {simulationResult.decision_reason}
+              </p>
+            </div>
+
+            <div className="bg-blue-50/70 p-3 rounded-xl border border-blue-200/80 text-xs space-y-1">
+              <span className="font-bold text-blue-900 flex items-center space-x-1.5">
+                <Scale className="w-3.5 h-3.5 text-blue-700" />
+                <span>Landasan Hukum UU PDP:</span>
+              </span>
+              <p className="text-blue-800 leading-relaxed text-[11px]">
+                {simulationResult.legal_basis}
+              </p>
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSimulationResult(null)}
+                className="w-full py-2.5 rounded-xl font-bold text-xs bg-teal-600 hover:bg-teal-700 text-white transition cursor-pointer"
+              >
+                Tutup Simulasi
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

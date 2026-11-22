@@ -112,7 +112,9 @@ export const AttendanceSuccessModal: React.FC<AttendanceSuccessModalProps> = ({
               <span className="text-base font-black text-teal-950 font-mono">
                 {(result.similarity_score * 100).toFixed(1)}%
               </span>
-              <span className="text-[9px] text-teal-600 block">Ambang: ≥ 85%</span>
+              <span className="text-[9px] text-teal-600 block">
+                Ambang: ≥ {((result.thresholds?.face_match ?? 0.45) * 100).toFixed(0)}%
+              </span>
             </div>
 
             <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-2.5">
@@ -120,7 +122,9 @@ export const AttendanceSuccessModal: React.FC<AttendanceSuccessModalProps> = ({
               <span className="text-base font-extrabold text-emerald-950">
                 {result.distance_meters.toFixed(0)}m
               </span>
-              <span className="text-[9px] text-emerald-500 block">Batas: ≤ 50m</span>
+              <span className="text-[9px] text-emerald-500 block">
+                Batas: ≤ {result.thresholds?.radius_m ?? 50}m
+              </span>
             </div>
 
             <div className="bg-slate-100/60 border border-slate-200 rounded-xl p-2.5">
@@ -128,7 +132,9 @@ export const AttendanceSuccessModal: React.FC<AttendanceSuccessModalProps> = ({
               <span className="text-base font-extrabold text-slate-800">
                 {result.late_minutes}m
               </span>
-              <span className="text-[9px] text-slate-500 block">Batas: ≤ 15m</span>
+              <span className="text-[9px] text-slate-500 block">
+                Batas: ≤ {result.thresholds?.on_time_max_minutes ?? 15}m
+              </span>
             </div>
           </div>
 

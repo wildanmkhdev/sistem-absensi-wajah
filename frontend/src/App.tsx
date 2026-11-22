@@ -7,17 +7,19 @@ import { OversightPage } from './pages/OversightPage';
 import { BenchmarkPage } from './pages/BenchmarkPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { RegisterPage } from './pages/RegisterPage';
+import { SessionsPage } from './pages/SessionsPage';
 import { fetchMe, fetchOversightAttendances, setAuthToken } from './api';
 import { clearSession, readSession, writeSession } from './auth';
 import type { Role, Session } from './auth';
 
 const ALLOWED_TABS: Record<Role, string[]> = {
   mahasiswa: ['presensi', 'history', 'register'],
-  dosen: ['oversight', 'history', 'benchmark'],
+  dosen: ['sessions', 'oversight', 'history', 'benchmark'],
 };
 
 export const App: React.FC = () => {
   const [session, setSession] = useState<Session | null>(() => readSession());
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [activeTab, setActiveTab] = useState<string>(() => {
     const stored = readSession();
     return stored ? ALLOWED_TABS[stored.role][0] : 'presensi';
@@ -28,6 +30,15 @@ export const App: React.FC = () => {
     clearSession();
     setAuthToken(null);
     setSession(null);
+    setAuthMode('login');
+    setActiveTab('presensi');
+  }, []);
+
+  const handleOpenRegister = useCallback(() => {
+    clearSession();
+    setAuthToken(null);
+    setSession(null);
+    setAuthMode('register');
     setActiveTab('presensi');
   }, []);
 
@@ -88,8 +99,8 @@ export const App: React.FC = () => {
       return;
     }
 
-    refreshOversightCount();
-    const timer = setInterval(refreshOversightCount, 30000);
+    void refreshOversightCount();
+    const timer = setInterval(() => void refreshOversightCount(), 30000);
     return () => clearInterval(timer);
   }, [session?.role, refreshOversightCount]);
 
@@ -105,11 +116,11 @@ export const App: React.FC = () => {
     writeSession(nextSession);
     setAuthToken(nextSession.token);
     setSession(nextSession);
-    setActiveTab(nextSession.role === 'dosen' ? 'oversight' : 'presensi');
+    setActiveTab(nextSession.role === 'dosen' ? 'sessions' : 'presensi');
   };
 
   if (!session) {
-    return <LoginPage onLogin={handleLogin} />;
+    return <LoginPage onLogin={handleLogin} initialMode={authMode} />;
   }
 
   return (
@@ -134,6 +145,8 @@ export const App: React.FC = () => {
         >
           {activeTab === 'presensi' && <PresensiPage student={session} />}
 
+          {activeTab === 'sessions' && <SessionsPage />}
+
           {activeTab === 'oversight' && (
             <OversightPage
               lecturerName={session.name}
@@ -141,9 +154,7 @@ export const App: React.FC = () => {
             />
           )}
 
-          {activeTab === 'benchmark' && (
-            <BenchmarkPage onAttendanceCreated={refreshOversightCount} />
-          )}
+          {activeTab === 'benchmark' && <BenchmarkPage />}
 
           {activeTab === 'history' && (
             <HistoryPage
@@ -153,7 +164,11 @@ export const App: React.FC = () => {
           )}
 
           {activeTab === 'register' && (
-            <RegisterPage onRegisteredSuccess={() => setActiveTab('presensi')} />
+            <RegisterPage
+              currentUser={session}
+              onRegisteredSuccess={() => setActiveTab('presensi')}
+              onOpenRegisterAccount={handleOpenRegister}
+            />
           )}
         </MobileFrame>
       </main>
