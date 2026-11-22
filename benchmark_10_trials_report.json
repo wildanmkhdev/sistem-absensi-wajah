@@ -1,0 +1,102 @@
+[
+  {
+    "trial": "Trial 1",
+    "type": "Genuine",
+    "pair": "obama_a vs obama_a",
+    "desc": "Barack Obama (Foto Identik - Self Consistency)",
+    "similarity": 1.0,
+    "distance": 0.0,
+    "decision": "HADIR (Match Kuat)",
+    "evaluation": "BENAR (100%)"
+  },
+  {
+    "trial": "Trial 2",
+    "type": "Genuine",
+    "pair": "obama_a vs obama_b",
+    "desc": "Barack Obama (Beda Sudut/Ekspresi/Pencahayaan)",
+    "similarity": 0.7461638450622559,
+    "distance": 0.7125113606452942,
+    "decision": "PERLU_VERIFIKASI_DOSEN (Toleransi Wajar)",
+    "evaluation": "BENAR (100%)"
+  },
+  {
+    "trial": "Trial 3",
+    "type": "Genuine",
+    "pair": "einstein_1 vs einstein_2",
+    "desc": "Albert Einstein (Foto 1 vs Foto 2 Beda Tahun)",
+    "similarity": 0.4763866066932678,
+    "distance": 1.0233409404754639,
+    "decision": "TIDAK_SAH (Ditolak / Beda Orang)",
+    "evaluation": "SALAH"
+  },
+  {
+    "trial": "Trial 4",
+    "type": "Genuine",
+    "pair": "tesla_1 vs tesla_2",
+    "desc": "Nikola Tesla (Potret Muda vs Potret 1890)",
+    "similarity": 0.5432139039039612,
+    "distance": 0.9558097124099731,
+    "decision": "TIDAK_SAH (Ditolak / Beda Orang)",
+    "evaluation": "SALAH"
+  },
+  {
+    "trial": "Trial 5",
+    "type": "Genuine",
+    "pair": "biden_1 vs biden_2",
+    "desc": "Joe Biden (Potret Publik vs Potret Resmi Gedung Putih)",
+    "similarity": 0.9614298939704895,
+    "distance": 0.2777412235736847,
+    "decision": "HADIR (Match Kuat)",
+    "evaluation": "BENAR (100%)"
+  },
+  {
+    "trial": "Trial 6",
+    "type": "Impostor",
+    "pair": "obama_a vs biden_1",
+    "desc": "Barack Obama vs Joe Biden",
+    "similarity": 0.0,
+    "distance": 1.437973976135254,
+    "decision": "TIDAK_SAH (Ditolak / Beda Orang)",
+    "evaluation": "BENAR (100%)"
+  },
+  {
+    "trial": "Trial 7",
+    "type": "Impostor",
+    "pair": "einstein_1 vs tesla_1",
+    "desc": "Albert Einstein vs Nikola Tesla",
+    "similarity": 0.0,
+    "distance": 1.4217870235443115,
+    "decision": "TIDAK_SAH (Ditolak / Beda Orang)",
+    "evaluation": "BENAR (100%)"
+  },
+  {
+    "trial": "Trial 8",
+    "type": "Impostor",
+    "pair": "curie_1 vs obama_a",
+    "desc": "Marie Curie vs Barack Obama",
+    "similarity": 0.0,
+    "distance": 1.4227781295776367,
+    "decision": "TIDAK_SAH (Ditolak / Beda Orang)",
+    "evaluation": "BENAR (100%)"
+  },
+  {
+    "trial": "Trial 9",
+    "type": "Impostor",
+    "pair": "tesla_2 vs biden_2",
+    "desc": "Nikola Tesla vs Joe Biden",
+    "similarity": 0.08333577960729599,
+    "distance": 1.3540045022964478,
+    "decision": "TIDAK_SAH (Ditolak / Beda Orang)",
+    "evaluation": "BENAR (100%)"
+  },
+  {
+    "trial": "Trial 10",
+    "type": "Impostor",
+    "pair": "einstein_2 vs curie_1",
+    "desc": "Albert Einstein vs Marie Curie",
+    "similarity": 0.18874694406986237,
+    "distance": 1.2737762928009033,
+    "decision": "TIDAK_SAH (Ditolak / Beda Orang)",
+    "evaluation": "BENAR (100%)"
+  }
+]

@@ -326,7 +326,7 @@ def detect_faces(
     min_score: Optional[float] = None,
 ) -> List[DetectedFace]:
     """Detect faces and return them in original-image coordinates."""
-    img = image if isinstance(image, Image.Image) else load_image(image)
+    img = load_image(image)
     size = input_size or DETECTOR_INPUT_SIZE
     threshold = DETECTION_MIN_SCORE if min_score is None else min_score
 
