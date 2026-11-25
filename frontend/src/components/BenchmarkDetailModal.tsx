@@ -1,6 +1,7 @@
 import React from 'react';
-import { Award, X, Play, Loader2, Scale, ShieldCheck } from 'lucide-react';
+import { X, Play, Loader2, Scale, ShieldCheck } from 'lucide-react';
 import type { BenchmarkCase } from '../types';
+import { IconAcademicShield } from './icons/FlaticonIcons';
 
 interface BenchmarkDetailModalProps {
   item: BenchmarkCase;
@@ -9,33 +10,43 @@ interface BenchmarkDetailModalProps {
   isRunning: boolean;
 }
 
-const STATUS_BADGE: Record<string, string> = {
-  HADIR: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  TERLAMBAT: 'bg-amber-50 text-amber-700 border-amber-200',
-  PERLU_VERIFIKASI_DOSEN: 'bg-teal-50 text-teal-700 border-teal-200',
-};
-const STATUS_BADGE_DEFAULT = 'bg-rose-50 text-rose-700 border-rose-200';
-
 export const BenchmarkDetailModal: React.FC<BenchmarkDetailModalProps> = ({
   item,
   onClose,
   onRun,
   isRunning,
 }) => {
+  const scorePct = Math.max(
+    0,
+    Math.min(100, Math.round(item.face_score <= 1 ? item.face_score * 100 : item.face_score))
+  );
+
+  const renderStatusTag = (status: string) => {
+    if (status === 'HADIR') return <span className="hlb-tag ok">Hadir</span>;
+    if (status === 'TERLAMBAT') return <span className="hlb-tag accent">Terlambat</span>;
+    if (status === 'PERLU_VERIFIKASI_DOSEN') {
+      return <span className="hlb-tag paper">Verifikasi Dosen</span>;
+    }
+    return <span className="hlb-tag warn">{status.replace(/_/g, ' ')}</span>;
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-5 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-[2px] animate-fade-in font-sans">
+      <div className="hlb-panel max-w-lg w-full p-6 shadow-[6px_6px_0_var(--shadow)] space-y-4 max-h-[90vh] overflow-y-auto">
         {/* Modal Header */}
-        <div className="flex items-start justify-between">
-          <div className="flex items-center space-x-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-teal-50 text-teal-700 flex items-center justify-center font-bold">
-              <Award className="w-5 h-5 text-teal-600" />
+        <div className="flex items-start justify-between gap-3 pb-3 border-b-2 border-[var(--edge)]">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-[var(--yellow)] border-2 border-[var(--on-yellow)] shadow-[2px_2px_0_var(--shadow)] flex items-center justify-center shrink-0">
+              <IconAcademicShield className="w-5 h-5" />
             </div>
-            <div>
-              <h3 className="text-base font-bold text-slate-800">
-                Kasus {item.case_id} • {item.name}
-              </h3>
-              <p className="text-xs text-slate-500">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="hlb-tag accent font-mono">{item.case_id}</span>
+                <h3 className="font-display font-normal text-2xl leading-tight text-[var(--ink)]">
+                  {item.name}
+                </h3>
+              </div>
+              <p className="font-mono text-[11px] text-[var(--soft)] mt-0.5">
                 Studi Kasus Modul 13 • Kepatuhan UU PDP No. 27/2022
               </p>
             </div>
@@ -43,94 +54,97 @@ export const BenchmarkDetailModal: React.FC<BenchmarkDetailModalProps> = ({
           <button
             onClick={onClose}
             aria-label="Tutup detail kasus"
-            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-full hover:bg-slate-100 transition cursor-pointer"
+            className="hlb-btn-secondary p-1.5 cursor-pointer shrink-0"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Metrics */}
-        <div className="grid grid-cols-3 gap-2 text-center text-xs">
-          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
-            <span className="text-[10px] text-slate-400 block font-medium">Skor Wajah</span>
-            <span className="font-bold text-teal-700 font-mono">{item.face_score}</span>
+        {/* Metrics Grid */}
+        <div className="grid grid-cols-3 gap-2.5 text-center">
+          <div className="hlb-tile p-3 space-y-1.5">
+            <span className="font-mono text-[10px] text-[var(--soft)] block uppercase font-semibold">
+              Skor Wajah
+            </span>
+            <span className="font-mono font-semibold text-sm text-[var(--ink)] block tabular-nums">
+              {item.face_score}
+            </span>
+            <div className="hlb-progress">
+              <div style={{ width: `${scorePct}%` }} />
+            </div>
           </div>
-          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
-            <span className="text-[10px] text-slate-400 block font-medium">Jarak GPS</span>
-            <span className="font-bold text-slate-700 font-mono">{item.distance_meters}m</span>
+          <div className="hlb-tile p-3 flex flex-col justify-center">
+            <span className="font-mono text-[10px] text-[var(--soft)] block uppercase font-semibold">
+              Jarak GPS
+            </span>
+            <span className="font-mono font-semibold text-sm text-[var(--ink)] block mt-1 tabular-nums">
+              {item.distance_meters}m
+            </span>
           </div>
-          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
-            <span className="text-[10px] text-slate-400 block font-medium">Telat</span>
-            <span className="font-bold text-slate-700 font-mono">{item.late_minutes}m</span>
+          <div className="hlb-tile p-3 flex flex-col justify-center">
+            <span className="font-mono text-[10px] text-[var(--soft)] block uppercase font-semibold">
+              Telat
+            </span>
+            <span className="font-mono font-semibold text-sm text-[var(--ink)] block mt-1 tabular-nums">
+              {item.late_minutes}m
+            </span>
           </div>
         </div>
 
         {/* Condition */}
-        <div className="space-y-1">
-          <span className="block text-xs font-bold text-slate-700">Kondisi Lapangan</span>
-          <p className="text-[11px] leading-relaxed text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-200/80">
+        <div className="space-y-1.5">
+          <span className="block font-mono text-[11px] font-semibold uppercase tracking-wider text-[var(--soft)]">
+            Kondisi Lapangan
+          </span>
+          <p className="text-sm leading-relaxed text-[var(--ink)] bg-[var(--bg)] p-3.5 rounded-xl border-2 border-[var(--edge)]">
             {item.condition_description}
           </p>
         </div>
 
         {/* Ethical / legal analysis */}
-        <div className="space-y-1">
-          <span className="flex items-center space-x-1.5 text-xs font-bold text-slate-700">
-            <Scale className="w-3.5 h-3.5 text-teal-600" />
+        <div className="space-y-1.5">
+          <span className="flex items-center gap-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-[var(--soft)]">
+            <Scale className="w-3.5 h-3.5 text-[var(--ink)]" />
             <span>Analisis Etis &amp; Hukum</span>
           </span>
-          <p className="text-[11px] leading-relaxed text-slate-600 bg-teal-50/50 p-3 rounded-xl border border-teal-100">
+          <p className="text-sm leading-relaxed text-[var(--ink)] bg-[var(--bg)] p-3.5 rounded-xl border-2 border-[var(--edge)]">
             {item.ethical_legal_analysis}
           </p>
         </div>
 
         {/* PDP reference */}
-        <div className="space-y-1">
-          <span className="flex items-center space-x-1.5 text-xs font-bold text-slate-700">
-            <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
-            <span>Rujukan Pasal</span>
+        <div className="hlb-alert info p-3.5 space-y-1">
+          <span className="flex items-center gap-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-[var(--ink)]">
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>Rujukan Pasal UU PDP</span>
           </span>
-          <p className="text-[11px] leading-relaxed text-slate-600 bg-white p-3 rounded-xl border border-slate-200/80">
+          <p className="text-sm leading-relaxed text-[var(--ink)]">
             {item.pdp_article_reference}
           </p>
         </div>
 
         {/* Status comparison */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80 text-center space-y-1.5">
-            <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
-              Aturan Awal
+        <div className="grid grid-cols-2 gap-3 text-xs">
+          <div className="hlb-tile p-3.5">
+            <span className="block font-mono text-[10px] uppercase tracking-wider text-[var(--soft)] mb-2">
+              Aturan Kaku (Awal)
             </span>
-            <span
-              className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold border ${
-                STATUS_BADGE[item.status_initial] ?? STATUS_BADGE_DEFAULT
-              }`}
-            >
-              {item.status_initial}
-            </span>
+            <div>{renderStatusTag(item.status_initial)}</div>
           </div>
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80 text-center space-y-1.5">
-            <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
-              Hasil UU PDP
+          <div className="hlb-tile bg-[var(--paper)] p-3.5">
+            <span className="block font-mono text-[10px] uppercase tracking-wider text-[var(--soft)] mb-2">
+              Rancangan UU PDP
             </span>
-            <span
-              className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold border ${
-                STATUS_BADGE[item.status_uupdp] ?? STATUS_BADGE_DEFAULT
-              }`}
-            >
-              {item.status_uupdp === 'PERLU_VERIFIKASI_DOSEN'
-                ? 'VERIFIKASI DOSEN'
-                : item.status_uupdp}
-            </span>
+            <div>{renderStatusTag(item.status_uupdp)}</div>
           </div>
         </div>
 
         {/* Actions */}
-        <div className="flex items-center justify-end space-x-2 pt-1">
+        <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-[var(--line)]">
           <button
             type="button"
             onClick={onClose}
-            className="py-2.5 px-4 rounded-xl font-bold text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer active:scale-95"
+            className="hlb-btn-secondary font-mono text-xs uppercase tracking-wider px-4 py-2.5 cursor-pointer"
           >
             Tutup
           </button>
@@ -138,12 +152,12 @@ export const BenchmarkDetailModal: React.FC<BenchmarkDetailModalProps> = ({
             type="button"
             onClick={onRun}
             disabled={isRunning}
-            className="flex items-center space-x-2 py-2.5 px-4 rounded-xl font-bold text-xs bg-teal-600 hover:bg-teal-700 text-white shadow-sm transition cursor-pointer active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="hlb-btn-primary flex items-center gap-1.5 font-mono text-xs uppercase tracking-wider px-4 py-2.5 cursor-pointer disabled:opacity-50"
           >
             {isRunning ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
             ) : (
-              <Play className="w-4 h-4" />
+              <Play className="w-3.5 h-3.5" />
             )}
             <span>{isRunning ? 'Menjalankan...' : 'Jalankan Simulasi'}</span>
           </button>

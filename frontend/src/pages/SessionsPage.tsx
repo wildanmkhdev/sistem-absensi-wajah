@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   AlertCircle,
-  BookOpen,
   Calendar,
   CheckCircle2,
   Clock,
@@ -14,6 +13,7 @@ import {
 import { createSession, fetchSessions } from '../api';
 import { DEFAULT_CLASSROOM } from '../config';
 import type { SessionCreateInput, SessionInfo } from '../types';
+import { IconClassroom, IconGpsRadar } from '../components/icons/FlaticonIcons';
 
 export const SessionsPage: React.FC = () => {
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
@@ -123,31 +123,39 @@ export const SessionsPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-4">
+    <div className="max-w-5xl mx-auto space-y-5 font-sans">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">
-            Manajemen Sesi Perkuliahan
-          </h1>
-          <p className="text-xs text-slate-500">
-            Jadwalkan ruang kelas, koordinat geofence, dan jendela waktu presensi mahasiswa.
-          </p>
+      <div className="hlb-panel p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center gap-3.5 min-w-0">
+          <div className="w-12 h-12 rounded-xl bg-[var(--paper)] border-2 border-[var(--edge)] shadow-[3px_3px_0_var(--shadow)] flex items-center justify-center shrink-0">
+            <IconClassroom className="w-6 h-6" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="font-display font-normal text-2xl sm:text-3xl leading-tight text-[var(--ink)]">
+              Manajemen Sesi Perkuliahan
+            </h1>
+            <p className="text-sm text-[var(--soft)] mt-0.5">
+              Pengaturan ruang kelas, koordinat geofence, dan jendela waktu presensi.
+            </p>
+          </div>
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center gap-2.5 shrink-0">
           <button
             type="button"
             onClick={() => void loadSessionsList()}
             disabled={isLoading}
-            className="p-2 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-slate-800 transition cursor-pointer shadow-xs"
+            className="hlb-btn-secondary h-10 w-10 flex items-center justify-center cursor-pointer disabled:opacity-50"
             title="Segarkan data"
+            aria-label="Segarkan data"
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
           </button>
           <button
             type="button"
             onClick={() => setShowCreateForm((prev) => !prev)}
-            className="inline-flex items-center space-x-1.5 text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white px-3.5 py-2 rounded-xl transition shadow-xs cursor-pointer"
+            className={`${
+              showCreateForm ? 'hlb-btn-secondary' : 'hlb-btn-primary'
+            } inline-flex items-center gap-1.5 text-xs uppercase tracking-wider h-10 px-4 cursor-pointer`}
           >
             <PlusCircle className="w-4 h-4" />
             <span>{showCreateForm ? 'Tutup Formulir' : 'Buka Sesi Kuliah'}</span>
@@ -157,35 +165,43 @@ export const SessionsPage: React.FC = () => {
 
       {feedback && (
         <div
-          className={`flex items-center space-x-2 text-xs p-3.5 rounded-2xl border ${
-            feedback.type === 'success'
-              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-              : 'bg-rose-50 text-rose-800 border-rose-200'
-          }`}
+          className={`hlb-alert ${
+            feedback.type === 'success' ? 'success' : 'danger'
+          } flex items-center gap-2.5 p-4 text-sm font-medium text-[var(--ink)]`}
         >
           {feedback.type === 'success' ? (
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <CheckCircle2 className="w-4 h-4 text-[var(--green)] shrink-0" />
           ) : (
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <AlertCircle className="w-4 h-4 text-[var(--red)] shrink-0" />
           )}
-          <span className="font-medium">{feedback.message}</span>
+          <span>{feedback.message}</span>
         </div>
       )}
 
       {/* Form Pembuatan Sesi */}
       {showCreateForm && (
-        <div className="bg-white rounded-2xl border border-teal-200/80 p-4 sm:p-5 shadow-xs space-y-4">
-          <div className="flex items-center space-x-2 text-teal-800 border-b border-slate-100 pb-2.5">
-            <BookOpen className="w-4 h-4 text-teal-600" />
-            <h3 className="text-xs font-bold uppercase tracking-wider">
-              Formulir Sesi Perkuliahan Baru
-            </h3>
+        <div className="hlb-panel p-5 sm:p-6 space-y-5">
+          <div className="flex items-center justify-between pb-3 border-b-2 border-[var(--edge)]">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-lg bg-[var(--yellow)] border-2 border-[var(--on-yellow)] flex items-center justify-center shrink-0">
+                <IconGpsRadar className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="font-display font-normal text-xl text-[var(--ink)] leading-tight">
+                  Formulir Sesi Perkuliahan Baru
+                </h2>
+                <p className="font-mono text-[11px] uppercase tracking-wider text-[var(--soft)]">
+                  Konfigurasi Ruang &amp; Geofence GPS
+                </p>
+              </div>
+            </div>
+            <span className="hlb-tag paper hidden sm:inline-flex">Sesi Baru</span>
           </div>
 
-          <form onSubmit={handleCreateSubmit} className="space-y-3.5">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <form onSubmit={handleCreateSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block font-mono text-[11px] font-semibold uppercase tracking-wider text-[var(--soft)] mb-1.5">
                   Kode Mata Kuliah
                 </label>
                 <input
@@ -196,12 +212,12 @@ export const SessionsPage: React.FC = () => {
                     setFormData((prev) => ({ ...prev, course_code: e.target.value }))
                   }
                   placeholder="IF3201"
-                  className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-600"
+                  className="hlb-input w-full text-sm font-mono px-3.5 py-2.5"
                 />
               </div>
 
               <div className="sm:col-span-2">
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block font-mono text-[11px] font-semibold uppercase tracking-wider text-[var(--soft)] mb-1.5">
                   Nama Mata Kuliah
                 </label>
                 <input
@@ -212,14 +228,14 @@ export const SessionsPage: React.FC = () => {
                     setFormData((prev) => ({ ...prev, course_name: e.target.value }))
                   }
                   placeholder="Kecerdasan Buatan"
-                  className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-600"
+                  className="hlb-input w-full text-sm px-3.5 py-2.5"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block font-mono text-[11px] font-semibold uppercase tracking-wider text-[var(--soft)] mb-1.5">
                   Ruang Kelas / Lokasi
                 </label>
                 <input
@@ -229,13 +245,13 @@ export const SessionsPage: React.FC = () => {
                     setFormData((prev) => ({ ...prev, room_name: e.target.value }))
                   }
                   placeholder="Lab Komputer Lt. 3"
-                  className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-600"
+                  className="hlb-input w-full text-sm px-3.5 py-2.5"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Radius Geofence Maksimal (meter)
+                <label className="block font-mono text-[11px] font-semibold uppercase tracking-wider text-[var(--soft)] mb-1.5">
+                  Radius Geofence (meter)
                 </label>
                 <input
                   type="number"
@@ -246,21 +262,23 @@ export const SessionsPage: React.FC = () => {
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, radius_m: Number(e.target.value) }))
                   }
-                  className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-600"
+                  className="hlb-input w-full text-sm font-mono tabular-nums px-3.5 py-2.5"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-bold text-slate-700">Latitude Kelas</label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="font-mono text-[11px] font-semibold uppercase tracking-wider text-[var(--soft)]">
+                    Latitude Kelas
+                  </label>
                   <button
                     type="button"
                     onClick={handleGetCurrentGps}
-                    className="text-[10px] text-teal-700 font-bold flex items-center space-x-1 hover:underline cursor-pointer"
+                    className="hlb-chip text-[10px] font-mono uppercase tracking-wider px-2.5 py-0.5 inline-flex items-center gap-1 cursor-pointer"
                   >
-                    <Navigation className="w-2.5 h-2.5" />
+                    <Navigation className="w-3 h-3" />
                     <span>Gunakan Posisi Saya</span>
                   </button>
                 </div>
@@ -272,12 +290,12 @@ export const SessionsPage: React.FC = () => {
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, latitude: Number(e.target.value) }))
                   }
-                  className="w-full text-xs font-mono font-semibold bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-600"
+                  className="hlb-input w-full text-sm font-mono tabular-nums px-3.5 py-2.5"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block font-mono text-[11px] font-semibold uppercase tracking-wider text-[var(--soft)] mb-1.5">
                   Longitude Kelas
                 </label>
                 <input
@@ -288,14 +306,14 @@ export const SessionsPage: React.FC = () => {
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, longitude: Number(e.target.value) }))
                   }
-                  className="w-full text-xs font-mono font-semibold bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-600"
+                  className="hlb-input w-full text-sm font-mono tabular-nums px-3.5 py-2.5"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block font-mono text-[11px] font-semibold uppercase tracking-wider text-[var(--soft)] mb-1.5">
                   Waktu Mulai Kuliah
                 </label>
                 <input
@@ -305,13 +323,13 @@ export const SessionsPage: React.FC = () => {
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, starts_at: e.target.value }))
                   }
-                  className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-600"
+                  className="hlb-input w-full text-sm font-mono px-3.5 py-2.5"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Waktu Selesai (Batas Akhir Presensi)
+                <label className="block font-mono text-[11px] font-semibold uppercase tracking-wider text-[var(--soft)] mb-1.5">
+                  Waktu Selesai (Batas Akhir)
                 </label>
                 <input
                   type="datetime-local"
@@ -320,23 +338,23 @@ export const SessionsPage: React.FC = () => {
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, ends_at: e.target.value }))
                   }
-                  className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-600"
+                  className="hlb-input w-full text-sm font-mono px-3.5 py-2.5"
                 />
               </div>
             </div>
 
-            <div className="pt-2 flex justify-end space-x-2">
+            <div className="pt-3 border-t border-[var(--line)] flex items-center justify-end gap-2.5">
               <button
                 type="button"
                 onClick={() => setShowCreateForm(false)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                className="hlb-btn-secondary text-xs font-mono uppercase tracking-wider px-4 py-2.5 cursor-pointer"
               >
                 Batal
               </button>
               <button
                 type="submit"
                 disabled={isCreating}
-                className="px-5 py-2 rounded-xl text-xs font-bold bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white shadow-xs transition cursor-pointer disabled:bg-slate-300"
+                className="hlb-btn-primary text-xs font-mono uppercase tracking-wider px-5 py-2.5 cursor-pointer disabled:opacity-50"
               >
                 {isCreating ? 'Menyimpan Sesi...' : 'Aktifkan Sesi Kuliah'}
               </button>
@@ -345,63 +363,71 @@ export const SessionsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Sesi List */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <Calendar className="w-4 h-4 text-teal-600" />
-            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+      {/* Sesi List Card */}
+      <div className="hlb-panel p-5 sm:p-6">
+        <div className="pb-3.5 mb-4 border-b-2 border-[var(--edge)] flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <Calendar className="w-5 h-5 text-[var(--ink)]" />
+            <h2 className="font-display font-normal text-xl text-[var(--ink)]">
               Daftar Sesi Kuliah Terdaftar
-            </h3>
+            </h2>
           </div>
-          <span className="text-[11px] font-mono font-semibold text-slate-400">
+          <span className="hlb-tag paper font-mono tabular-nums">
             {sessions.length} Sesi
           </span>
         </div>
 
         {isLoading ? (
-          <div className="py-8 text-center text-xs text-slate-400">Memuat data sesi...</div>
+          <div className="py-12 flex flex-col items-center justify-center text-[var(--soft)] gap-2">
+            <RefreshCw className="w-6 h-6 animate-spin text-[var(--soft)]" />
+            <span className="font-mono text-xs uppercase tracking-wider">
+              Memuat data sesi perkuliahan...
+            </span>
+          </div>
         ) : sessions.length === 0 ? (
-          <div className="py-8 text-center text-xs text-slate-400">
-            Belum ada sesi perkuliahan. Klik "Buka Sesi Kuliah" di atas.
+          <div className="py-12 text-center space-y-1.5">
+            <p className="font-display font-normal text-xl text-[var(--ink)]">
+              Belum Ada Sesi Perkuliahan
+            </p>
+            <p className="text-sm text-[var(--soft)]">
+              Klik &quot;Buka Sesi Kuliah&quot; di atas untuk membuka jendela presensi baru.
+            </p>
           </div>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="space-y-3">
             {sessions.map((item) => (
               <div
                 key={item.id}
-                className="p-4 hover:bg-slate-50 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                className={`hlb-tile p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                  item.is_open ? 'bg-[var(--paper)]' : 'bg-[var(--surface)]'
+                }`}
               >
-                <div className="space-y-1 min-w-0">
-                  <div className="flex items-center space-x-2 flex-wrap">
-                    <span className="font-bold text-slate-800 text-sm">{item.course_name}</span>
-                    <span className="font-mono text-[10px] font-bold text-teal-700 bg-teal-50 border border-teal-200/60 px-2 py-0.5 rounded">
+                <div className="space-y-2 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-[var(--ink)] text-sm sm:text-base">
+                      {item.course_name}
+                    </span>
+                    <span className="hlb-tag neutral font-mono">
                       {item.course_code}
                     </span>
-                    <span
-                      className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
-                        item.is_open
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                          : 'bg-slate-100 text-slate-500 border-slate-200'
-                      }`}
-                    >
-                      {item.is_open ? 'SEDANG DIBUKA' : 'DITUTUP'}
+                    <span className={`hlb-tag ${item.is_open ? 'ok' : 'neutral'}`}>
+                      {item.is_open ? 'AKTIF' : 'TUTUP'}
                     </span>
                   </div>
 
-                  <div className="flex items-center space-x-3 text-slate-500 text-[11px] flex-wrap">
-                    <span className="flex items-center space-x-1">
-                      <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                  <div className="flex items-center gap-x-3 gap-y-1.5 text-[var(--soft)] text-xs flex-wrap">
+                    <span className="inline-flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5 text-[var(--ink)] shrink-0" />
                       <span>{item.room_name || 'Ruang Kuliah'}</span>
                     </span>
-                    <span>•</span>
-                    <span className="flex items-center space-x-1">
-                      <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="text-[var(--muted)]">•</span>
+                    <span className="inline-flex items-center gap-1 font-mono tabular-nums">
+                      <ShieldCheck className="w-3.5 h-3.5 text-[var(--ink)] shrink-0" />
                       <span>Radius ≤{item.radius_m}m</span>
                     </span>
-                    <span>•</span>
-                    <span className="flex items-center space-x-1">
-                      <Clock className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="text-[var(--muted)]">•</span>
+                    <span className="inline-flex items-center gap-1 font-mono tabular-nums">
+                      <Clock className="w-3.5 h-3.5 text-[var(--ink)] shrink-0" />
                       <span>
                         {formatDateTime(item.starts_at)} – {formatDateTime(item.ends_at)}
                       </span>
@@ -409,13 +435,13 @@ export const SessionsPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="shrink-0 text-right">
-                  <span className="text-[10px] text-slate-400 block font-mono">
+                <div className="shrink-0 flex sm:flex-col items-center sm:items-end justify-between gap-1.5 pt-2 sm:pt-0 border-t sm:border-t-0 border-[var(--line)]">
+                  <span className="font-mono text-xs font-semibold text-[var(--soft)] tabular-nums">
                     ID #{item.id}
                   </span>
                   {item.is_open && item.seconds_until_close && (
-                    <span className="text-[10px] font-bold text-emerald-600 block">
-                      Tutup dalam {Math.round(item.seconds_until_close / 60)} menit
+                    <span className="hlb-tag ok font-mono tabular-nums">
+                      Tutup dlm {Math.round(item.seconds_until_close / 60)}m
                     </span>
                   )}
                 </div>

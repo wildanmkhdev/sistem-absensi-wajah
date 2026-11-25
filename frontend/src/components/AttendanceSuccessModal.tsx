@@ -1,6 +1,8 @@
 import React from 'react';
-import { AlertTriangle, CheckCircle2, Clock, ShieldCheck, User, X } from 'lucide-react';
+import { X, User } from 'lucide-react';
 import type { PresensiResponse } from '../types';
+import { IconVerifiedCheck } from './icons/FlaticonIcons';
+import { formatDistance } from '../utils/geo';
 
 interface AttendanceSuccessModalProps {
   result: PresensiResponse;
@@ -28,138 +30,162 @@ export const AttendanceSuccessModal: React.FC<AttendanceSuccessModalProps> = ({
   const isTerlambat = result.status === 'TERLAMBAT';
   const isOversight = result.status === 'PERLU_VERIFIKASI_DOSEN';
 
-  const badgeConfig = isHadir
+  const statusInfo = isHadir
     ? {
-        bg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-        icon: CheckCircle2,
-        title: 'Presensi Berhasil Dicatat!',
-        subtitle: 'Wajah dan lokasi terverifikasi valid sesuai aturan.',
-        ringColor: 'ring-emerald-400',
+        title: 'Presensi Berhasil Dicatat',
+        subtitle: 'Wajah dan koordinat GPS terverifikasi sah.',
+        headerBg: 'bg-[var(--mint)]',
+        tagClass: 'hlb-tag ok',
+        label: 'Hadir Sah',
       }
     : isTerlambat
     ? {
-        bg: 'bg-amber-50 text-amber-700 border-amber-200',
-        icon: Clock,
-        title: 'Presensi Diterima (Terlambat)',
-        subtitle: 'Kehadiran dicatat dengan catatan keterlambatan 16-30 menit.',
-        ringColor: 'ring-amber-400',
+        title: 'Presensi Tercatat (Terlambat)',
+        subtitle: 'Kehadiran dicatat dengan catatan keterlambatan.',
+        headerBg: 'bg-[var(--paper)]',
+        tagClass: 'hlb-tag accent',
+        label: 'Terlambat',
       }
     : isOversight
     ? {
-        bg: 'bg-blue-50 text-blue-700 border-blue-200',
-        icon: ShieldCheck,
-        title: 'Perlu Verifikasi Dosen',
-        subtitle: 'Sesuai UU PDP Pasal 34, kasus anomali dialihkan untuk ditinjau dosen.',
-        ringColor: 'ring-blue-400',
+        title: 'Menunggu Verifikasi Dosen',
+        subtitle: 'Sesuai UU PDP Pasal 34, anomali sensor dialihkan ke dosen.',
+        headerBg: 'bg-[var(--paper)]',
+        tagClass: 'hlb-tag paper',
+        label: 'Review Dosen',
       }
     : {
-        bg: 'bg-rose-50 text-rose-700 border-rose-200',
-        icon: AlertTriangle,
         title: 'Presensi Tidak Sah',
-        subtitle: 'Wajah tidak cocok, radius GPS terlampau jauh, atau melebihi batas waktu.',
-        ringColor: 'ring-rose-400',
+        subtitle:
+          result.late_minutes > 30
+            ? `Waktu kehadiran melebihi batas toleransi keterlambatan 30 menit (${Math.round(result.late_minutes)}m).`
+            : result.similarity_score < 0.45
+            ? `Skor kecocokan wajah (${(result.similarity_score * 100).toFixed(0)}%) di bawah batas 45%.`
+            : result.distance_meters > 50
+            ? `Posisi berada di luar batas geofence ruang kelas (${formatDistance(result.distance_meters)}).`
+            : 'Presensi tidak memenuhi syarat regulasi kehadiran.',
+        headerBg: 'bg-[var(--pink)]',
+        tagClass: 'hlb-tag warn',
+        label: 'Tidak Sah',
       };
 
-  const StatusIcon = badgeConfig.icon;
+  const similarityPct = Math.min(100, Math.max(0, result.similarity_score * 100));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-lg w-full overflow-hidden transform transition-all">
-        {/* Top Header Banner */}
-        <div className={`p-6 border-b flex items-start justify-between ${badgeConfig.bg}`}>
-          <div className="flex items-center space-x-3">
-            <div
-              className={`w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center ${badgeConfig.ringColor} ring-4 ring-opacity-20`}
-            >
-              <StatusIcon className="w-7 h-7" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--shadow)]/65 backdrop-blur-[2px] animate-fade-in">
+      <div className="hlb-panel shadow-[6px_6px_0_var(--shadow)] max-w-md w-full overflow-hidden">
+        {/* Semantic Tint Modal Header */}
+        <div
+          className={`${statusInfo.headerBg} p-5 border-b-2 border-[var(--edge)] flex items-start justify-between gap-3`}
+        >
+          <div className="flex items-start space-x-3">
+            <div className="w-11 h-11 rounded-xl bg-[var(--surface)] border-2 border-[var(--edge)] shadow-[2px_2px_0_var(--shadow)] flex items-center justify-center shrink-0 text-[var(--ink)]">
+              <IconVerifiedCheck className="w-6 h-6" />
             </div>
             <div>
-              <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/80 border border-current shadow-xs">
-                Status: {result.status.replace(/_/g, ' ')}
-              </span>
-              <h2 className="text-lg font-bold text-slate-800 mt-1">{badgeConfig.title}</h2>
-              <p className="text-xs text-slate-600">{badgeConfig.subtitle}</p>
+              <span className={statusInfo.tagClass}>{statusInfo.label}</span>
+              <h2 className="font-display font-normal text-xl sm:text-2xl text-[var(--ink)] leading-tight mt-1">
+                {statusInfo.title}
+              </h2>
+              <p className="font-sans text-xs text-[var(--soft)] mt-0.5 leading-relaxed">
+                {statusInfo.subtitle}
+              </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-white/60 transition"
+            aria-label="Tutup"
+            className="hlb-btn-secondary p-1.5 rounded-xl cursor-pointer shrink-0"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 space-y-5">
+        <div className="p-5 space-y-4 text-xs">
           {/* Student Info Card */}
-          <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-100 flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-full bg-teal-50 text-teal-700 flex items-center justify-center font-bold text-sm shrink-0">
-              <User className="w-5 h-5" />
+          <div className="bg-[var(--bg)] rounded-xl p-3 border-2 border-[var(--edge)] flex items-center space-x-3">
+            <div className="w-9 h-9 rounded-lg bg-[var(--surface)] border-2 border-[var(--edge)] flex items-center justify-center text-[var(--ink)] shrink-0">
+              <User className="w-4 h-4" />
             </div>
             <div className="min-w-0">
-              <h4 className="font-bold text-slate-800 text-sm truncate">
-                {result.name || 'Mahasiswa'}
-              </h4>
-              <p className="text-xs text-slate-500">NIM: {result.nim}</p>
-              <p className="text-[11px] text-slate-400">{formatTimestamp(result.timestamp)}</p>
+              <div className="font-sans font-semibold text-sm text-[var(--ink)] truncate">
+                {result.name || result.student_name || 'Mahasiswa'}
+              </div>
+              <div className="text-[var(--soft)] font-mono text-[11px] tabular-nums">
+                NIM {result.nim}
+              </div>
             </div>
           </div>
 
-          {/* Key Metrics Grid */}
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="bg-teal-50/70 border border-teal-200/80 rounded-xl p-2.5">
-              <span className="text-[10px] text-teal-700 font-bold block">Skor Wajah</span>
-              <span className="text-base font-black text-teal-950 font-mono">
-                {(result.similarity_score * 100).toFixed(1)}%
+          {/* Mono Similarity Bar (.hlb-progress) */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between font-mono text-[11px]">
+              <span className="uppercase tracking-wider text-[var(--soft)] font-semibold">
+                Cosine Similarity Wajah
               </span>
-              <span className="text-[9px] text-teal-600 block">
-                Ambang: ≥ {((result.thresholds?.face_match ?? 0.45) * 100).toFixed(0)}%
-              </span>
-            </div>
-
-            <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-2.5">
-              <span className="text-[10px] text-emerald-600 font-semibold block">Jarak GPS</span>
-              <span className="text-base font-extrabold text-emerald-950">
-                {result.distance_meters.toFixed(0)}m
-              </span>
-              <span className="text-[9px] text-emerald-500 block">
-                Batas: ≤ {result.thresholds?.radius_m ?? 50}m
+              <span className="font-semibold text-[var(--ink)] tabular-nums">
+                {similarityPct.toFixed(1)}% ({result.similarity_score.toFixed(3)})
               </span>
             </div>
+            <div className="hlb-progress">
+              <div
+                className="h-full bg-[var(--yellow)] transition-all duration-500"
+                style={{ width: `${similarityPct}%` }}
+              />
+            </div>
+          </div>
 
-            <div className="bg-slate-100/60 border border-slate-200 rounded-xl p-2.5">
-              <span className="text-[10px] text-slate-600 font-semibold block">Keterlambatan</span>
-              <span className="text-base font-extrabold text-slate-800">
+          {/* Metric details */}
+          <div className="grid grid-cols-3 gap-2.5 text-center">
+            <div className="hlb-tile bg-[var(--bg)] p-2.5">
+              <span className="font-mono text-[9px] text-[var(--soft)] block uppercase font-semibold tracking-wider">
+                Skor Wajah
+              </span>
+              <span className="font-display font-normal text-lg text-[var(--ink)] block mt-0.5 tabular-nums leading-tight">
+                {similarityPct.toFixed(1)}%
+              </span>
+            </div>
+            <div className="hlb-tile bg-[var(--bg)] p-2.5">
+              <span className="font-mono text-[9px] text-[var(--soft)] block uppercase font-semibold tracking-wider">
+                Jarak Kelas
+              </span>
+              <span className="font-display font-normal text-lg text-[var(--ink)] block mt-0.5 tabular-nums leading-tight">
+                {formatDistance(result.distance_meters)}
+              </span>
+            </div>
+            <div className="hlb-tile bg-[var(--bg)] p-2.5">
+              <span className="font-mono text-[9px] text-[var(--soft)] block uppercase font-semibold tracking-wider">
+                Terlambat
+              </span>
+              <span className="font-display font-normal text-lg text-[var(--ink)] block mt-0.5 tabular-nums leading-tight">
                 {result.late_minutes}m
               </span>
-              <span className="text-[9px] text-slate-500 block">
-                Batas: ≤ {result.thresholds?.on_time_max_minutes ?? 15}m
-              </span>
             </div>
           </div>
 
-          {/* Reason / Legal Explanation */}
-          <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 text-xs text-slate-600 space-y-1">
-            <div className="font-semibold text-slate-700">Analisis Sistem:</div>
-            <p className="leading-relaxed text-[11px]">{result.decision_reason}</p>
+          <div className="hlb-alert info p-3 space-y-1">
+            <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)] block">
+              Keterangan Keputusan
+            </span>
+            <p className="font-sans text-xs text-[var(--soft)] leading-relaxed">
+              {result.decision_reason}
+            </p>
           </div>
 
-          {result.note && (
-            <div className="bg-amber-50/70 rounded-xl p-3 border border-amber-200/80 text-xs text-amber-800 space-y-1">
-              <div className="font-semibold text-amber-900">Catatan:</div>
-              <p className="leading-relaxed text-[11px]">{result.note}</p>
-            </div>
-          )}
+          <div className="text-[11px] text-[var(--soft)] text-center font-mono tabular-nums pt-0.5">
+            Dicatat pada: {formatTimestamp(result.timestamp)}
+          </div>
         </div>
 
         {/* Modal Footer */}
-        <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end space-x-2">
+        <div className="p-4 bg-[var(--bg)] border-t-2 border-[var(--edge)] flex justify-end">
           <button
             type="button"
             onClick={onClose}
-            className="w-full py-3 px-4 rounded-xl font-bold text-sm bg-teal-600 hover:bg-teal-700 text-white shadow-xs transition cursor-pointer"
+            className="w-full hlb-btn-primary h-11 text-xs uppercase tracking-wider cursor-pointer"
           >
-            Tutup &amp; Selesai
+            Tutup
           </button>
         </div>
       </div>

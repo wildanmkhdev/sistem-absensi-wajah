@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { CheckCircle, XCircle, AlertCircle, X, ShieldCheck } from 'lucide-react';
+import { AlertCircle, X } from 'lucide-react';
 import type { AttendanceRecord } from '../types';
+import { IconAcademicShield } from './icons/FlaticonIcons';
+import { formatDistance } from '../utils/geo';
 
 interface LecturerResolveModalProps {
   attendance: AttendanceRecord;
@@ -37,83 +39,138 @@ export const LecturerResolveModal: React.FC<LecturerResolveModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-[2px] animate-fade-in font-sans">
+      <div className="hlb-panel max-w-lg w-full p-6 shadow-[6px_6px_0_var(--shadow)] space-y-4 max-h-[90vh] overflow-y-auto">
         {/* Modal Header */}
-        <div className="flex items-start justify-between">
-          <div className="flex items-center space-x-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-teal-50 text-teal-700 flex items-center justify-center font-bold">
-              <ShieldCheck className="w-5 h-5 text-teal-600" />
+        <div className="flex items-start justify-between gap-3 pb-3 border-b-2 border-[var(--edge)]">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[var(--yellow)] border-2 border-[var(--on-yellow)] shadow-[2px_2px_0_var(--shadow)] flex items-center justify-center shrink-0">
+              <IconAcademicShield className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-800">Verifikasi Dosen (Human Oversight)</h3>
-              <p className="text-xs text-slate-500">Kepatuhan UU PDP No. 27/2022 Pasal 34</p>
+              <h3 className="font-display font-normal text-2xl leading-tight text-[var(--ink)]">
+                Verifikasi Human Oversight
+              </h3>
+              <p className="font-mono text-[11px] text-[var(--soft)]">
+                Kepatuhan UU PDP No. 27/2022 Pasal 34
+              </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-full hover:bg-slate-100 transition cursor-pointer"
+            aria-label="Tutup"
+            className="hlb-btn-secondary p-1.5 cursor-pointer shrink-0"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Student & Anomaly Info Card */}
-        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3">
-          <div className="flex justify-between items-start">
+        <div className="bg-[var(--paper)] border-2 border-[var(--edge)] rounded-xl p-4 space-y-3.5">
+          <div className="flex justify-between items-start gap-2">
             <div>
-              <div className="text-sm font-bold text-slate-800">{attendance.name || 'Mahasiswa'}</div>
-              <div className="text-xs text-slate-500 font-mono">NIM: {attendance.nim}</div>
+              <div className="text-base font-semibold text-[var(--ink)]">
+                {attendance.name || 'Mahasiswa'}
+              </div>
+              <div className="text-xs text-[var(--soft)] font-mono">
+                NIM {attendance.nim}
+              </div>
             </div>
             {attendance.simulated_case && (
-              <span className="text-[10px] uppercase font-bold bg-teal-100 text-teal-800 px-2.5 py-0.5 rounded-full">
+              <span className="hlb-tag accent font-mono">
                 Kasus {attendance.simulated_case}
               </span>
             )}
           </div>
 
-          <div className="grid grid-cols-3 gap-2 text-center text-xs pt-1">
-            <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-xs">
-              <span className="text-[10px] text-slate-400 block font-medium">Skor Wajah</span>
-              <span className="font-bold text-teal-700 font-mono">
+          {/* Side-by-side Face Comparison / Biometric Capture Frame */}
+          {attendance.face_image_preview && (
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="bg-[var(--surface)] border-2 border-[var(--edge)] rounded-xl p-2 space-y-1.5">
+                <span className="block font-mono text-[10px] uppercase tracking-wider text-[var(--soft)] text-center">
+                  Tangkapan Presensi
+                </span>
+                <img
+                  src={attendance.face_image_preview}
+                  alt={`Tangkapan wajah ${attendance.name || attendance.nim}`}
+                  className="w-full h-28 object-cover rounded-lg border-2 border-[var(--edge)]"
+                />
+              </div>
+              <div className="bg-[var(--surface)] border-2 border-[var(--edge)] rounded-xl p-3 flex flex-col justify-between">
+                <span className="block font-mono text-[10px] uppercase tracking-wider text-[var(--soft)]">
+                  Skor Kecocokan
+                </span>
+                <div className="font-display font-normal text-3xl text-[var(--ink)] tabular-nums">
+                  {(attendance.similarity_score * 100).toFixed(1)}%
+                </div>
+                <div className="hlb-progress">
+                  <div
+                    style={{
+                      width: `${Math.max(
+                        0,
+                        Math.min(100, Math.round(attendance.similarity_score * 100))
+                      )}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="bg-[var(--surface)] p-2.5 rounded-xl border-2 border-[var(--edge)]">
+              <span className="font-mono text-[10px] text-[var(--soft)] block uppercase font-semibold">
+                Skor Wajah
+              </span>
+              <span className="font-semibold text-[var(--ink)] font-mono text-xs block mt-0.5 tabular-nums">
                 {(attendance.similarity_score * 100).toFixed(1)}%
               </span>
             </div>
-            <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-xs">
-              <span className="text-[10px] text-slate-400 block font-medium">Jarak GPS</span>
-              <span className="font-bold text-slate-700">
-                {attendance.distance_meters.toFixed(0)}m
+            <div className="bg-[var(--surface)] p-2.5 rounded-xl border-2 border-[var(--edge)]">
+              <span className="font-mono text-[10px] text-[var(--soft)] block uppercase font-semibold">
+                Jarak GPS
+              </span>
+              <span className="font-semibold text-[var(--ink)] font-mono text-xs block mt-0.5 tabular-nums">
+                {formatDistance(attendance.distance_meters)}
               </span>
             </div>
-            <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-xs">
-              <span className="text-[10px] text-slate-400 block font-medium">Telat</span>
-              <span className="font-bold text-slate-700">{attendance.late_minutes}m</span>
+            <div className="bg-[var(--surface)] p-2.5 rounded-xl border-2 border-[var(--edge)]">
+              <span className="font-mono text-[10px] text-[var(--soft)] block uppercase font-semibold">
+                Telat
+              </span>
+              <span className="font-semibold text-[var(--ink)] font-mono text-xs block mt-0.5 tabular-nums">
+                {attendance.late_minutes}m
+              </span>
             </div>
           </div>
 
-          <div className="text-xs text-slate-600 bg-white p-3 rounded-xl border border-slate-200/80">
-            <span className="font-bold text-slate-700 block mb-0.5">Indikasi Masalah:</span>
-            <p className="text-[11px] leading-relaxed text-slate-500">{attendance.decision_reason}</p>
+          <div className="text-xs bg-[var(--surface)] p-3 rounded-xl border-2 border-[var(--edge)]">
+            <span className="font-mono text-[10px] uppercase tracking-wider font-semibold text-[var(--soft)] block mb-1">
+              Indikasi Sistem
+            </span>
+            <p className="text-xs leading-relaxed text-[var(--ink)]">
+              {attendance.decision_reason}
+            </p>
           </div>
         </div>
 
         {/* Note Input */}
         <div className="space-y-1.5">
-          <label className="block text-xs font-bold text-slate-700">
-            Catatan Dosen Pengampu <span className="text-rose-500">*</span>
+          <label className="block font-mono text-[11px] font-semibold uppercase tracking-wider text-[var(--soft)]">
+            Catatan Dosen Pengampu <span className="text-[var(--red)]">*</span>
           </label>
           <textarea
             rows={3}
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="Tuliskan alasan pengesahan atau penolakan presensi..."
-            className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-teal-600 focus:bg-white transition"
+            placeholder="Tuliskan catatan verifikasi kehadiran mahasiswa..."
+            className="hlb-input w-full text-sm p-3"
           />
         </div>
 
         {error && (
-          <div className="flex items-center space-x-1.5 text-xs text-rose-700 bg-rose-50 border border-rose-200 p-2.5 rounded-xl">
-            <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+          <div className="hlb-alert danger flex items-center gap-2 text-xs text-[var(--ink)] p-3">
+            <AlertCircle className="w-4 h-4 shrink-0 text-[var(--red)]" />
             <span>{error}</span>
           </div>
         )}
@@ -124,20 +181,18 @@ export const LecturerResolveModal: React.FC<LecturerResolveModalProps> = ({
             type="button"
             disabled={isSubmitting}
             onClick={() => handleAction(false)}
-            className="flex items-center justify-center space-x-2 py-3 px-4 rounded-xl font-bold text-xs bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition cursor-pointer active:scale-95"
+            className="hlb-btn-danger h-11 px-4 font-mono text-xs uppercase tracking-wider cursor-pointer disabled:opacity-50"
           >
-            <XCircle className="w-4 h-4 text-rose-600" />
-            <span>Tolak (Tidak Sah)</span>
+            Tolak (Tidak Sah)
           </button>
 
           <button
             type="button"
             disabled={isSubmitting}
             onClick={() => handleAction(true)}
-            className="flex items-center justify-center space-x-2 py-3 px-4 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm shadow-emerald-200 transition cursor-pointer active:scale-95"
+            className="hlb-btn-primary h-11 px-4 font-mono text-xs uppercase tracking-wider cursor-pointer disabled:opacity-50"
           >
-            <CheckCircle className="w-4 h-4" />
-            <span>Setujui Hadir (Sah)</span>
+            Setujui Hadir (Sah)
           </button>
         </div>
       </div>

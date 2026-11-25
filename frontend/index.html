@@ -1,14 +1,69 @@
 <!doctype html>
-<html lang="en">
+<html lang="id">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>PresenSI AI — Presensi Wajah Berbasis AI & Kepatuhan UU PDP</title>
-    <meta name="description" content="Sistem Presensi Kuliah Berbasis Pengenalan Wajah dengan Human Oversight sesuai UU PDP No. 27 Tahun 2022 Pasal 34 (Studi Kasus Modul 13 Kelompok 6)" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <title>PresenSI AI — Presensi Wajah Berbasis AI &amp; Kepatuhan UU PDP</title>
+    <meta
+      name="description"
+      content="Sistem Presensi Kuliah Berbasis Pengenalan Wajah dengan Human Oversight sesuai UU PDP No. 27 Tahun 2022 Pasal 34 (Studi Kasus Modul 13 Kelompok 6)"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Chewy&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&display=swap"
+      rel="stylesheet"
+    />
+    <script id="theme-init">
+      (function () {
+        var KEY = 'presensi-theme';
+        var mql = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+
+        function resolveTheme() {
+          try {
+            var saved = localStorage.getItem(KEY);
+            if (saved === 'light' || saved === 'dark') return saved;
+          } catch (e) {}
+          return mql && mql.matches ? 'dark' : 'light';
+        }
+
+        function applyTheme(v) {
+          var next = v === 'dark' ? 'dark' : 'light';
+          document.documentElement.dataset.theme = next;
+          try {
+            window.dispatchEvent(new CustomEvent('presensi:theme', { detail: next }));
+          } catch (e) {}
+          return next;
+        }
+
+        window.setPresensiTheme = function (v) {
+          var next = applyTheme(v);
+          try {
+            localStorage.setItem(KEY, next);
+          } catch (e) {}
+          return next;
+        };
+
+        window.togglePresensiTheme = function () {
+          var cur = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+          return window.setPresensiTheme(cur === 'dark' ? 'light' : 'dark');
+        };
+
+        applyTheme(resolveTheme());
+
+        if (mql && typeof mql.addEventListener === 'function') {
+          mql.addEventListener('change', function (e) {
+            try {
+              var saved = localStorage.getItem(KEY);
+              if (saved === 'light' || saved === 'dark') return;
+            } catch (err) {}
+            applyTheme(e.matches ? 'dark' : 'light');
+          });
+        }
+      })();
+    </script>
+  </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>

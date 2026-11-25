@@ -2,20 +2,723 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Metric-adjusted local fallback faces so web font swap causes zero layout shift */
+@font-face {
+  font-family: 'Chewy Fallback Arial';
+  font-weight: 400;
+  src: local('Arial Bold'), local('Arial-BoldMT'), local('Helvetica Bold'), local('Helvetica-Bold'), local('Liberation Sans Bold'), local('Arimo Bold'), local('Nimbus Sans Bold');
+  size-adjust: 81.27%;
+  ascent-override: 120.52%;
+  descent-override: 37.25%;
+  line-gap-override: 3%;
+}
+@font-face {
+  font-family: 'Chewy Fallback Roboto';
+  font-weight: 400;
+  src: local('Roboto Bold'), local('Roboto-Bold');
+  size-adjust: 86.32%;
+  ascent-override: 113.47%;
+  descent-override: 35.07%;
+  line-gap-override: 2.83%;
+}
+@font-face {
+  font-family: 'Source Sans 3 Fallback Arial';
+  font-weight: 400;
+  src: local('Arial'), local('ArialMT'), local('Helvetica'), local('Liberation Sans'), local('Arimo'), local('Nimbus Sans');
+  size-adjust: 93.23%;
+  ascent-override: 109.84%;
+  descent-override: 42.9%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Source Sans 3 Fallback Arial';
+  font-weight: 600;
+  src: local('Arial Bold'), local('Arial-BoldMT'), local('Helvetica Bold'), local('Helvetica-Bold'), local('Liberation Sans Bold'), local('Arimo Bold'), local('Nimbus Sans Bold');
+  size-adjust: 89.29%;
+  ascent-override: 114.68%;
+  descent-override: 44.8%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Source Sans 3 Fallback Arial';
+  font-weight: 700;
+  src: local('Arial Bold'), local('Arial-BoldMT'), local('Helvetica Bold'), local('Helvetica-Bold'), local('Liberation Sans Bold'), local('Arimo Bold'), local('Nimbus Sans Bold');
+  size-adjust: 91.23%;
+  ascent-override: 112.24%;
+  descent-override: 43.85%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Source Sans 3 Fallback Roboto';
+  font-weight: 400;
+  src: local('Roboto'), local('Roboto-Regular');
+  size-adjust: 93.57%;
+  ascent-override: 109.44%;
+  descent-override: 42.75%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Source Sans 3 Fallback Roboto';
+  font-weight: 600;
+  src: local('Roboto Bold'), local('Roboto-Bold');
+  size-adjust: 94.9%;
+  ascent-override: 107.9%;
+  descent-override: 42.15%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Source Sans 3 Fallback Roboto';
+  font-weight: 700;
+  src: local('Roboto Bold'), local('Roboto-Bold');
+  size-adjust: 97.14%;
+  ascent-override: 105.41%;
+  descent-override: 41.18%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'IBM Plex Mono Fallback Menlo';
+  font-weight: 400;
+  src: local('Menlo'), local('Menlo-Regular'), local('DejaVu Sans Mono');
+  size-adjust: 99.66%;
+  ascent-override: 102.85%;
+  descent-override: 27.59%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'IBM Plex Mono Fallback Menlo';
+  font-weight: 600;
+  src: local('Menlo Bold'), local('Menlo-Bold'), local('DejaVu Sans Mono Bold');
+  size-adjust: 99.66%;
+  ascent-override: 102.85%;
+  descent-override: 27.59%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'IBM Plex Mono Fallback Courier New';
+  font-weight: 400;
+  src: local('Courier New'), local('CourierNewPSMT'), local('Liberation Mono'), local('Cousine'), local('Noto Sans Mono'), local('Droid Sans Mono');
+  size-adjust: 99.98%;
+  ascent-override: 102.52%;
+  descent-override: 27.51%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'IBM Plex Mono Fallback Courier New';
+  font-weight: 600;
+  src: local('Courier New Bold'), local('CourierNewPS-BoldMT'), local('Liberation Mono Bold'), local('Cousine Bold'), local('Noto Sans Mono Bold'), local('Droid Sans Mono');
+  size-adjust: 99.98%;
+  ascent-override: 102.52%;
+  descent-override: 27.51%;
+  line-gap-override: 0%;
+}
+
 @layer base {
+  :root {
+    --bg: #E9E6DD;
+    --surface: #FBF8F1;
+    --ink: #232323;
+    --soft: #55524B;
+    --muted: #8C8C8C;
+    --line: #D8D3C8;
+    --paper: #FFF1C6;
+    --yellow: #FFD21E;
+    --orange: #FF9D00;
+    --blue: #3B7CF6;
+    --red: #EF3E36;
+    --green: #3E8E5E;
+    --pink: #F6C7C4;
+    --mint: #CDEBD6;
+    --edge: #232323;
+    --shadow: #232323;
+    --topbar: rgba(233, 230, 221, 0.92);
+    --hover: #F5F0E3;
+    --best-hover: #FCE9A9;
+    --tip: #232323;
+    --tip-ink: #F4EFE3;
+    --focus: var(--ink);
+    --on-yellow: #232323;
+    --on-yellow-soft: #55524B;
+    --page-ink: var(--ink);
+    --page-edge: var(--edge);
+    color-scheme: light;
+
+    --display: 'Chewy', 'Chewy Fallback Arial', 'Chewy Fallback Roboto', cursive;
+    --body: 'Source Sans 3', 'Source Sans 3 Fallback Arial', 'Source Sans 3 Fallback Roboto', system-ui, sans-serif;
+    --mono: 'IBM Plex Mono', 'IBM Plex Mono Fallback Menlo', 'IBM Plex Mono Fallback Courier New', ui-monospace, monospace;
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #1D1C19;
+    --surface: #272622;
+    --ink: #DCD7CB;
+    --soft: #ADA79A;
+    --muted: #948F84;
+    --line: #3E3C37;
+    --paper: #3D3624;
+    --yellow: #EDC536;
+    --orange: #FF9D00;
+    --blue: #5B93F8;
+    --red: #F26B63;
+    --green: #4FA571;
+    --pink: #4F2B29;
+    --mint: #1F3D2B;
+    --edge: #78746B;
+    --shadow: #0E0D0B;
+    --topbar: rgba(29, 28, 25, 0.90);
+    --hover: #312F2B;
+    --best-hover: #4A3F22;
+    --tip: #34322D;
+    --tip-ink: #F4EFE3;
+    --focus: var(--ink);
+    --on-yellow: #232323;
+    --on-yellow-soft: #55524B;
+    --page-ink: var(--ink);
+    --page-edge: var(--edge);
+    color-scheme: dark;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    background-color: var(--bg);
+    color: var(--ink);
+  }
+
   body {
-    @apply bg-[#F8FAFC] text-slate-800 min-h-screen antialiased selection:bg-teal-100 selection:text-teal-900;
-    font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    margin: 0;
+    min-height: 100vh;
+    background-color: var(--bg);
+    color: var(--ink);
+    font-family: var(--body);
+    line-height: 1.5;
+  }
+
+  :root[data-theme="dark"] body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: var(--yellow);
+    color: var(--on-yellow);
   }
 }
 
-/* Clean Solid Pastel Card Styles - No Gradients */
-.card-pastel {
-  @apply bg-white border border-slate-200/70 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.03)] transition-all duration-150;
+/* ==========================================================================
+   Warm Editorial Neo-Brutalist Component Primitives (.hlb-*)
+   ========================================================================== */
+
+/* Sticky Blurred Topbar */
+.hlb-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background-color: var(--topbar);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 2px solid var(--edge);
 }
 
-.card-pastel-hover {
-  @apply bg-white border border-slate-200/70 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.03)] hover:border-teal-200 hover:shadow-sm transition-all duration-150;
+/* Main Panel / Card */
+.hlb-panel {
+  background-color: var(--surface);
+  color: var(--ink);
+  border: 2px solid var(--edge);
+  border-radius: 16px;
+  box-shadow: 6px 6px 0 var(--shadow);
+}
+
+/* KPI Tile / Sub-card */
+.hlb-tile {
+  background-color: var(--surface);
+  color: var(--ink);
+  border: 2px solid var(--edge);
+  border-radius: 12px;
+  box-shadow: 4px 4px 0 var(--shadow);
+  min-width: 0;
+}
+
+.hlb-tile-key {
+  background-color: var(--yellow);
+  border: 2px solid var(--on-yellow);
+  border-radius: 12px;
+  box-shadow: 4px 4px 0 var(--shadow);
+  min-width: 0;
+}
+
+/* Segmented Switch Container & Items */
+.hlb-switch {
+  display: inline-flex;
+  align-items: center;
+  background-color: var(--surface);
+  border: 2px solid var(--edge);
+  border-radius: 999px;
+  padding: 4px;
+  box-shadow: 3px 3px 0 var(--shadow);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.hlb-switch-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--soft);
+  border: 1.5px solid transparent;
+  transition: color 0.1s ease, background-color 0.1s ease, transform 0.08s ease;
+  cursor: pointer;
+}
+
+.hlb-switch-item:hover:not(.on) {
+  color: var(--ink);
+  background-color: var(--hover);
+}
+
+.hlb-switch-item.on {
+  background-color: var(--yellow);
+  color: var(--on-yellow);
+  border-color: var(--on-yellow);
+  font-weight: 600;
+}
+
+/* Filter Chips / Quick Action Pills */
+.hlb-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background-color: var(--surface);
+  color: var(--ink);
+  border: 2px solid var(--edge);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: 2px 2px 0 var(--shadow);
+  transition: transform 0.08s ease, background-color 0.1s ease;
+  cursor: pointer;
+}
+
+.hlb-chip:hover:not(:disabled) {
+  transform: translate(-1px, -1px);
+  background-color: var(--hover);
+}
+
+.hlb-chip:active:not(:disabled) {
+  transform: translate(1px, 1px);
+}
+
+.hlb-chip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.hlb-chip-on {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background-color: var(--yellow);
+  color: var(--on-yellow);
+  border: 2px solid var(--on-yellow);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 2px 2px 0 var(--shadow);
+  transition: transform 0.08s ease;
+  cursor: pointer;
+}
+
+.hlb-chip-on:hover:not(:disabled) {
+  transform: translate(-1px, -1px);
+}
+
+.hlb-chip-on:active:not(:disabled) {
+  transform: translate(1px, 1px);
+}
+
+/* Tactile Buttons */
+.hlb-btn-primary,
+.hlb-btn-ink,
+.hlb-btn-secondary,
+.hlb-btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 12px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: transform 0.08s ease, box-shadow 0.08s ease, background-color 0.1s ease;
+  cursor: pointer;
+}
+
+.hlb-btn-primary {
+  background-color: var(--yellow);
+  color: var(--on-yellow);
+  border: 2px solid var(--on-yellow);
+  box-shadow: 3px 3px 0 var(--shadow);
+}
+
+.hlb-btn-ink {
+  background-color: var(--ink);
+  color: var(--surface);
+  border: 2px solid var(--edge);
+  box-shadow: 3px 3px 0 var(--shadow);
+}
+
+.hlb-btn-secondary {
+  background-color: var(--surface);
+  color: var(--ink);
+  border: 2px solid var(--edge);
+  box-shadow: 2px 2px 0 var(--shadow);
+}
+
+.hlb-btn-danger {
+  background-color: var(--pink);
+  color: var(--ink);
+  border: 2px solid var(--edge);
+  box-shadow: 2px 2px 0 var(--shadow);
+}
+
+.hlb-btn-primary:hover:not(:disabled),
+.hlb-btn-ink:hover:not(:disabled),
+.hlb-btn-secondary:hover:not(:disabled),
+.hlb-btn-danger:hover:not(:disabled) {
+  transform: translate(-1px, -1px);
+}
+
+.hlb-btn-primary:active:not(:disabled),
+.hlb-btn-ink:active:not(:disabled),
+.hlb-btn-secondary:active:not(:disabled),
+.hlb-btn-danger:active:not(:disabled) {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--shadow);
+}
+
+.hlb-btn-primary:disabled,
+.hlb-btn-ink:disabled,
+.hlb-btn-secondary:disabled,
+.hlb-btn-danger:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Inputs, Selects, Textareas */
+.hlb-input {
+  width: 100%;
+  background-color: var(--surface);
+  color: var(--ink);
+  border: 2px solid var(--edge);
+  border-radius: 12px;
+  font-family: var(--body);
+  font-size: 14px;
+  transition: border-color 0.1s ease, box-shadow 0.1s ease;
+}
+
+.hlb-input::placeholder {
+  color: var(--muted);
+}
+
+.hlb-input:focus {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.hlb-input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Status Tags & Badges */
+.hlb-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border: 1.5px solid var(--edge);
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.4;
+  background-color: var(--surface);
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.hlb-tag.ok {
+  background-color: var(--mint);
+  color: var(--ink);
+}
+
+.hlb-tag.warn {
+  background-color: var(--pink);
+  color: var(--ink);
+}
+
+.hlb-tag.accent {
+  background-color: var(--yellow);
+  color: var(--on-yellow);
+  border-color: var(--on-yellow);
+}
+
+.hlb-tag.paper {
+  background-color: var(--paper);
+  color: var(--ink);
+}
+
+.hlb-tag.neutral {
+  background-color: var(--line);
+  color: var(--ink);
+}
+
+/* Alert Callouts */
+.hlb-alert {
+  border: 2px solid var(--edge);
+  border-radius: 12px;
+  box-shadow: 4px 4px 0 var(--shadow);
+  padding: 12px 15px;
+  background-color: var(--surface);
+  color: var(--ink);
+}
+
+.hlb-alert.info {
+  background-color: var(--paper);
+}
+
+.hlb-alert.danger {
+  background-color: var(--pink);
+}
+
+.hlb-alert.success {
+  background-color: var(--mint);
+}
+
+/* Editorial Data Tables */
+.hlb-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: var(--ink);
+}
+
+.hlb-table thead th {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--soft);
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 2px solid var(--edge);
+  white-space: nowrap;
+}
+
+.hlb-table tbody td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+.hlb-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.hlb-table tbody tr:hover {
+  background-color: var(--hover);
+}
+
+/* Progress Bar */
+.hlb-progress {
+  position: relative;
+  width: 100%;
+  height: 10px;
+  background-color: var(--bg);
+  border: 2px solid var(--edge);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.hlb-progress > i,
+.hlb-progress > div,
+.hlb-progress-bar {
+  display: block;
+  height: 100%;
+  background-color: var(--yellow);
+  border-radius: 999px;
+}
+
+/* Circular Theme Toggle Button */
+.hlb-theme-btn {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  background-color: var(--surface);
+  color: var(--ink);
+  border: 2px solid var(--edge);
+  border-radius: 999px;
+  box-shadow: 2px 2px 0 var(--shadow);
+  transition: transform 0.08s ease, background-color 0.1s ease;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.hlb-theme-btn:hover {
+  transform: translate(-1px, -1px);
+  background-color: var(--hover);
+}
+
+.hlb-theme-btn:active {
+  transform: translate(1px, 1px);
+}
+
+/* Editorial Hero Highlight Mark */
+.hlb-mark {
+  background-color: var(--yellow);
+  color: var(--on-yellow);
+  border: 2px solid var(--on-yellow);
+  padding: 0 0.2em;
+  border-radius: 8px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+/* Monospace Inline / Block Code */
+.hlb-code {
+  font-family: var(--mono);
+  font-size: 0.85em;
+  background-color: var(--tip);
+  color: var(--tip-ink);
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1.5px solid var(--edge);
+}
+
+/* ==========================================================================
+   Dark Mode Contrast Invariance on Brand Yellow Surfaces
+   Always keep dark charcoal #232323 ink & borders on --yellow in both themes
+   ========================================================================== */
+.hlb-switch-item.on,
+.hlb-chip-on,
+.hlb-tile-key,
+.hlb-btn-primary,
+.hlb-tag.accent,
+.hlb-mark {
+  --ink: var(--on-yellow);
+  --soft: var(--on-yellow-soft);
+  --edge: var(--on-yellow);
+  color: var(--on-yellow);
+  border-color: var(--on-yellow);
+}
+
+/* ==========================================================================
+   Backward-Compatible Fallbacks for Legacy Utility Classes
+   ========================================================================== */
+.card-shadcn,
+.card-squircle {
+  background-color: var(--surface);
+  color: var(--ink);
+  border: 2px solid var(--edge);
+  border-radius: 16px;
+  box-shadow: 6px 6px 0 var(--shadow);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.card-shadcn-hover,
+.card-squircle-hover {
+  background-color: var(--surface);
+  color: var(--ink);
+  border: 2px solid var(--edge);
+  border-radius: 16px;
+  box-shadow: 4px 4px 0 var(--shadow);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+.card-shadcn-hover:hover,
+.card-squircle-hover:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 6px 6px 0 var(--shadow);
+}
+
+.btn-shadcn-primary,
+.btn-academic-primary {
+  background-color: var(--yellow);
+  color: var(--on-yellow);
+  border: 2px solid var(--on-yellow);
+  font-family: var(--mono);
+  font-weight: 600;
+  font-size: 0.8125rem;
+  border-radius: 12px;
+  box-shadow: 3px 3px 0 var(--shadow);
+  transition: transform 0.08s ease, box-shadow 0.08s ease, opacity 0.15s ease;
+}
+.btn-shadcn-primary:hover:not(:disabled),
+.btn-academic-primary:hover:not(:disabled) {
+  transform: translate(-1px, -1px);
+}
+.btn-shadcn-primary:active:not(:disabled),
+.btn-academic-primary:active:not(:disabled) {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--shadow);
+}
+
+.btn-shadcn-secondary {
+  background-color: var(--surface);
+  color: var(--ink);
+  border: 2px solid var(--edge);
+  font-family: var(--mono);
+  font-weight: 600;
+  font-size: 0.8125rem;
+  border-radius: 12px;
+  box-shadow: 2px 2px 0 var(--shadow);
+  transition: transform 0.08s ease, background-color 0.1s ease;
+}
+.btn-shadcn-secondary:hover:not(:disabled) {
+  transform: translate(-1px, -1px);
+  background-color: var(--hover);
+}
+
+.btn-shadcn-outline {
+  background-color: var(--surface);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-weight: 600;
+  font-size: 0.8125rem;
+  border-radius: 12px;
+  border: 2px solid var(--edge);
+  box-shadow: 2px 2px 0 var(--shadow);
+  transition: transform 0.08s ease, background-color 0.1s ease;
+}
+.btn-shadcn-outline:hover:not(:disabled) {
+  transform: translate(-1px, -1px);
+  background-color: var(--hover);
 }
 
 /* Custom scrollbar helper */

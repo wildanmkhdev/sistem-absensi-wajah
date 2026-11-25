@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Camera, Upload, AlertCircle, Check, SwitchCamera, Sparkles } from 'lucide-react';
+import { Upload, AlertCircle, SwitchCamera } from 'lucide-react';
+import { IconCameraView, IconFaceScan } from './icons/FlaticonIcons';
 
 interface CameraCaptureProps {
   onCapture: (base64Image: string) => void;
@@ -69,56 +70,65 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
       streamRef.current = stream;
 
       if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.muted = true;
-        videoRef.current.playsInline = true;
-        videoRef.current.onloadedmetadata = () => {
-          videoRef.current?.play().catch((e) => console.warn('Autoplay prevented:', e));
-        };
-        await videoRef.current.play().catch((e) => console.warn('Play error:', e));
-      }
+        const video = videoRef.current;
+        video.srcObject = stream;
+        video.muted = true;
 
-      setCameraActive(true);
+        const handleReady = async () => {
+          try {
+            await video.play();
+            setCameraActive(true);
+            setIsInitializing(false);
+          } catch (playErr) {
+            console.error('Error auto-playing video:', playErr);
+            setCameraActive(true);
+            setIsInitializing(false);
+          }
+        };
+
+        if (video.readyState >= 1) {
+          void handleReady();
+        } else {
+          video.onloadedmetadata = () => void handleReady();
+          video.oncanplay = () => void handleReady();
+          setTimeout(() => {
+            if (video.srcObject) {
+              void handleReady();
+            }
+          }, 500);
+        }
+      }
     } catch (err: unknown) {
-      console.warn('Webcam start failed:', err);
-      const msg = err instanceof Error ? err.message : 'Gagal mengakses webcam.';
+      console.warn('Camera access denied or failed:', err);
+      const msg = err instanceof Error ? err.message : 'Kamera tidak dapat diakses.';
       setCameraError(msg);
       setCameraActive(false);
-    } finally {
       setIsInitializing(false);
     }
   }, [facingMode]);
 
   useEffect(() => {
     if (!capturedImage) {
-      startCamera();
+      void startCamera();
     } else {
       stopCamera();
     }
-
     return () => {
       stopCamera();
     };
   }, [capturedImage, startCamera, stopCamera]);
-
-  useEffect(() => {
-    if (videoRef.current && streamRef.current && !videoRef.current.srcObject) {
-      videoRef.current.srcObject = streamRef.current;
-      videoRef.current.play().catch(() => {});
-    }
-  });
 
   const toggleFacingMode = () => {
     setFacingMode((prev) => (prev === 'user' ? 'environment' : 'user'));
   };
 
   const takeSnapshot = () => {
-    if (!videoRef.current) return;
+    const video = videoRef.current;
+    if (!video) return;
 
     setShutterFlash(true);
-    setTimeout(() => setShutterFlash(false), 200);
+    setTimeout(() => setShutterFlash(false), 160);
 
-    const video = videoRef.current;
     const canvas = document.createElement('canvas');
     canvas.width = video.videoWidth || 640;
     canvas.height = video.videoHeight || 480;
@@ -152,151 +162,166 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
   return (
     <div
       id="camera-capture-viewport"
-      className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden flex flex-col"
+      className="hlb-panel overflow-hidden flex flex-col"
     >
       {/* Top Header */}
-      <div className="p-3.5 sm:p-4 border-b border-slate-100">
-        <h3 className="text-sm font-bold text-slate-800">Ambil Foto Selfie</h3>
-        <p className="text-[11px] text-slate-400 font-medium">
-          Posisikan wajah Anda tepat di dalam bingkai panduan
-        </p>
+      <div className="px-4 py-3.5 border-b-2 border-[var(--edge)] bg-[var(--surface)] flex items-center justify-between gap-2">
+        <div className="flex items-center space-x-2.5">
+          <div className="w-8 h-8 rounded-lg bg-[var(--paper)] border-2 border-[var(--edge)] flex items-center justify-center text-[var(--ink)] shrink-0">
+            <IconFaceScan className="w-4 h-4" />
+          </div>
+          <h3 className="font-display font-normal text-lg sm:text-xl text-[var(--ink)] leading-none">
+            Verifikasi Wajah Swafoto
+          </h3>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {capturedImage ? (
+            <span className="hlb-tag ok">TERAMBIL</span>
+          ) : cameraActive ? (
+            <span className="hlb-tag accent">LIVE</span>
+          ) : (
+            <span className="hlb-tag neutral">STANDBY</span>
+          )}
+          <span className="hlb-tag paper hidden sm:inline-flex">ArcFace 512-D</span>
+        </div>
       </div>
 
-      {/* Camera Viewfinder with Cyan/Teal Face Brackets */}
-      <div className="relative w-full aspect-4/3 max-h-[340px] bg-slate-950 overflow-hidden flex items-center justify-center">
-        {shutterFlash && (
-          <div className="absolute inset-0 bg-white z-40 transition-opacity duration-200 opacity-90 pointer-events-none" />
-        )}
+      {/* Camera Viewfinder Frame */}
+      <div className="p-3 sm:p-4 bg-[var(--bg)]">
+        <div className="relative w-full aspect-4/3 max-h-[340px] bg-[#161513] rounded-xl border-2 border-[var(--edge)] shadow-[4px_4px_0_var(--shadow)] overflow-hidden flex items-center justify-center">
+          {shutterFlash && (
+            <div className="absolute inset-0 bg-[var(--paper)] z-40 transition-opacity duration-150 opacity-90 pointer-events-none" />
+          )}
 
-        {/* Live Video Element */}
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          className={`w-full h-full object-cover ${facingMode === 'user' ? 'scale-x-[-1]' : ''} ${
-            !capturedImage && cameraActive ? 'block' : 'hidden'
-          }`}
-        />
+          {/* Live Video Element */}
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className={`w-full h-full object-cover ${facingMode === 'user' ? 'scale-x-[-1]' : ''} ${
+              !capturedImage && cameraActive ? 'block' : 'hidden'
+            }`}
+          />
 
-        {/* Cyan/Teal Face Guide Brackets */}
-        {!capturedImage && cameraActive && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 p-4">
-            <div className="relative w-48 h-56 sm:w-56 sm:h-64 flex items-center justify-center">
-              <div className="absolute top-0 left-0 w-8 h-8 border-t-3 border-l-3 border-teal-400 rounded-tl-xl shadow-xs" />
-              <div className="absolute top-0 right-0 w-8 h-8 border-t-3 border-r-3 border-teal-400 rounded-tr-xl shadow-xs" />
-              <div className="absolute bottom-0 left-0 w-8 h-8 border-b-3 border-l-3 border-teal-400 rounded-bl-xl shadow-xs" />
-              <div className="absolute bottom-0 right-0 w-8 h-8 border-b-3 border-r-3 border-teal-400 rounded-br-xl shadow-xs" />
-
-              <div className="w-12 h-12 rounded-full border border-teal-400/40 flex items-center justify-center animate-pulse">
-                <Sparkles className="w-4 h-4 text-teal-300" />
-              </div>
-
-              <div className="absolute bottom-2 inset-x-0 flex justify-center">
-                <span className="text-[10px] font-bold text-white bg-black/60 px-2.5 py-0.5 rounded-full border border-white/20">
-                  Wajah Terlihat Tegak
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* View: Captured Image Display */}
-        {capturedImage && (
-          <div className="relative w-full h-full">
-            <img src={capturedImage} alt="Hasil Swafoto" className="w-full h-full object-cover" />
-            <div className="absolute top-2.5 left-2.5 bg-emerald-600 text-white text-[11px] font-bold px-2.5 py-0.5 rounded-md shadow-xs flex items-center space-x-1">
-              <Check className="w-3.5 h-3.5" />
-              <span>Foto Siap</span>
-            </div>
-
-            <div className="absolute bottom-2.5 inset-x-2.5 bg-white/95 backdrop-blur-md rounded-xl p-2 shadow-sm border border-slate-200/80 flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-700 flex items-center space-x-1 ml-1">
-                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Foto Wajah Siap Dikirim</span>
+          {/* Top-left Mono HUD Pill on Live Feed */}
+          {!capturedImage && cameraActive && (
+            <div className="absolute top-3 left-3 z-20 pointer-events-none flex items-center gap-1.5">
+              <span className="font-mono text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-full bg-[var(--tip)] text-[var(--tip-ink)] border border-[var(--edge)]">
+                {facingMode === 'user' ? 'CAM: FRONT' : 'CAM: REAR'}
               </span>
+            </div>
+          )}
+
+          {/* Crisp Face Guide Frame */}
+          {!capturedImage && cameraActive && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 p-4">
+              <div className="relative w-48 h-56 sm:w-56 sm:h-64 flex items-center justify-center">
+                <div className="absolute top-0 left-0 w-7 h-7 border-t-[3px] border-l-[3px] rounded-tl-xl border-[var(--yellow)]" />
+                <div className="absolute top-0 right-0 w-7 h-7 border-t-[3px] border-r-[3px] rounded-tr-xl border-[var(--yellow)]" />
+                <div className="absolute bottom-0 left-0 w-7 h-7 border-b-[3px] border-l-[3px] rounded-bl-xl border-[var(--yellow)]" />
+                <div className="absolute bottom-0 right-0 w-7 h-7 border-b-[3px] border-r-[3px] rounded-br-xl border-[var(--yellow)]" />
+
+                <div className="absolute bottom-2 inset-x-0 flex justify-center">
+                  <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-[var(--on-yellow)] bg-[var(--yellow)] border-2 border-[var(--on-yellow)] px-3 py-1 rounded-full shadow-[2px_2px_0_var(--shadow)]">
+                    Posisikan wajah di bingkai
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* View: Captured Image Display */}
+          {capturedImage && (
+            <div className="relative w-full h-full">
+              <img src={capturedImage} alt="Hasil Swafoto" className="w-full h-full object-cover" />
+
+              <div className="absolute bottom-3 inset-x-3 bg-[var(--surface)] rounded-xl p-2.5 border-2 border-[var(--edge)] shadow-[3px_3px_0_var(--shadow)] flex items-center justify-between gap-2">
+                <span className="hlb-tag ok">Foto Wajah Terpilih</span>
+                <button
+                  type="button"
+                  onClick={onClearCapture}
+                  disabled={disabled}
+                  className="hlb-btn-secondary font-mono text-[11px] uppercase tracking-wider px-3 py-1.5 cursor-pointer disabled:opacity-40"
+                >
+                  Ambil Ulang
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* View: Camera Inactive or Error */}
+          {!capturedImage && !cameraActive && (
+            <div className="text-center p-5 space-y-3 max-w-xs z-10 text-[#F4EFE3]">
+              <div className="w-11 h-11 rounded-xl bg-[var(--paper)] border-2 border-[var(--edge)] shadow-[3px_3px_0_var(--shadow)] text-[var(--on-yellow)] mx-auto flex items-center justify-center">
+                <AlertCircle className="w-5 h-5 text-[var(--red)]" />
+              </div>
+              <div>
+                <p className="font-sans text-xs sm:text-sm font-semibold leading-relaxed">
+                  {isInitializing ? 'Memulai kamera...' : cameraError || 'Kamera belum aktif.'}
+                </p>
+                <p className="font-mono text-[10px] uppercase tracking-wider text-[#ADA79A] mt-1">
+                  Atau unggah file foto di bawah
+                </p>
+              </div>
               <button
                 type="button"
-                onClick={onClearCapture}
-                disabled={disabled}
-                className="text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 px-3 py-1 rounded-lg transition cursor-pointer"
+                onClick={startCamera}
+                className="hlb-btn-primary text-xs uppercase tracking-wider px-4 py-2 cursor-pointer"
               >
-                Ambil Ulang
+                Coba Lagi
               </button>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* View: Camera Inactive or Error */}
-        {!capturedImage && !cameraActive && (
-          <div className="text-center p-5 space-y-2.5 max-w-xs z-10 text-white">
-            <div className="w-10 h-10 rounded-full bg-slate-800 text-slate-400 mx-auto flex items-center justify-center">
-              <AlertCircle className="w-5 h-5 text-amber-400" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold leading-relaxed">
-                {isInitializing ? 'Memulai webcam...' : cameraError || 'Webcam belum aktif.'}
-              </p>
-              <p className="text-[10px] text-slate-400 mt-0.5">
-                Gunakan tombol Upload di bawah untuk mengunggah foto wajah.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={startCamera}
-              className="text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white px-3.5 py-1.5 rounded-lg transition shadow-xs cursor-pointer"
-            >
-              Nyalakan Ulang
-            </button>
-          </div>
-        )}
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          capture="user"
-          className="hidden"
-          onChange={handleFileUpload}
-        />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            capture="user"
+            className="hidden"
+            onChange={handleFileUpload}
+          />
+        </div>
       </div>
 
       {/* Shutter Controls Bar */}
-      <div className="p-3.5 sm:p-4 bg-white">
-        <div className="flex items-center justify-around py-1">
+      <div className="px-4 py-3.5 bg-[var(--surface)] border-t-2 border-[var(--edge)]">
+        <div className="flex items-center justify-between gap-3">
           <button
             type="button"
             onClick={toggleFacingMode}
             disabled={disabled}
-            className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition active:scale-95 cursor-pointer shadow-xs"
-            title="Ganti Kamera"
+            className="hlb-btn-secondary w-11 h-11 p-0 flex items-center justify-center cursor-pointer disabled:opacity-40 shrink-0"
+            title="Ganti Kamera Depan/Belakang"
           >
-            <SwitchCamera className="w-4.5 h-4.5 text-slate-600" />
+            <SwitchCamera className="w-4 h-4" />
           </button>
 
-          {/* Center Shutter Button */}
+          {/* Tactile Primary Capture Button */}
           <button
             type="button"
-            onClick={takeSnapshot}
-            disabled={disabled || !cameraActive}
-            className={`w-14 h-14 rounded-full bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white shadow-md shadow-teal-600/30 flex items-center justify-center transition active:scale-95 cursor-pointer ${
-              disabled || !cameraActive ? 'opacity-40 cursor-not-allowed' : ''
+            onClick={capturedImage ? onClearCapture : takeSnapshot}
+            disabled={disabled || (!cameraActive && !capturedImage && isInitializing)}
+            className={`hlb-btn-primary flex-1 h-11 px-4 text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer ${
+              disabled || (!cameraActive && !capturedImage && isInitializing)
+                ? 'opacity-40 cursor-not-allowed'
+                : ''
             }`}
-            title="Ambil Foto Wajah"
+            title={capturedImage ? 'Ambil Ulang Foto' : 'Ambil Foto Wajah (Shutter)'}
           >
-            <div className="w-11 h-11 rounded-full border-2 border-white/80 flex items-center justify-center">
-              <Camera className="w-5 h-5 text-white" />
-            </div>
+            <IconCameraView className="w-4 h-4" />
+            <span>{capturedImage ? 'Ambil Ulang Swafoto' : 'Ambil Foto Wajah'}</span>
           </button>
 
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled}
-            className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition active:scale-95 cursor-pointer shadow-xs"
-            title="Upload Foto Galeri / KTM"
+            className="hlb-btn-secondary w-11 h-11 p-0 flex items-center justify-center cursor-pointer disabled:opacity-40 shrink-0"
+            title="Upload Foto Wajah"
           >
-            <Upload className="w-4.5 h-4.5 text-slate-600" />
+            <Upload className="w-4 h-4" />
           </button>
         </div>
       </div>

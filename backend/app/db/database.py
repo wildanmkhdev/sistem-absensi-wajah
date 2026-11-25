@@ -1209,8 +1209,70 @@ def get_session(session_id: int) -> Optional[Dict[str, Any]]:
     return _session_row_to_dict([data.get(c) for c in _SESSION_COLUMNS])
 
 
+DUMMY_ACTIVE_COURSES = [
+    {
+        "course_code": "IF3201",
+        "course_name": "Kecerdasan Buatan & Pengenalan Pola",
+        "room_name": "UINSU Tuntungan - Lab AI & Komputer (Gedung B Lt. 2)",
+        "radius_m": 50.0,
+    },
+    {
+        "course_code": "IF3105",
+        "course_name": "Pengolahan Citra Digital & Visi Komputer",
+        "room_name": "UINSU Tuntungan - Lab Multimedia & Robotika (Gedung B Lt. 3)",
+        "radius_m": 50.0,
+    },
+    {
+        "course_code": "IF2204",
+        "course_name": "Rekayasa Perangkat Lunak Terdistribusi",
+        "room_name": "UINSU Tuntungan - Ruang Kuliah R-302 (FST UINSU Lt. 3)",
+        "radius_m": 50.0,
+    },
+    {
+        "course_code": "IF4102",
+        "course_name": "Etika Profesi & Hukum Privasi Data (UU PDP)",
+        "room_name": "UINSU Tuntungan - Auditorium H.M. Arsyad Thalib Lubis",
+        "radius_m": 60.0,
+    },
+]
+
+
+def ensure_dummy_active_sessions(existing_sessions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Auto-provision rich active dummy sessions at UINSU Tuntungan for prototype testing."""
+    from datetime import timedelta
+    from app.core.geo import DEFAULT_CLASSROOM_LAT, DEFAULT_CLASSROOM_LON
+
+    existing_codes = {s.get("course_code") for s in existing_sessions}
+    now = _now()
+    starts = (now - timedelta(minutes=10)).isoformat()
+    ends = (now + timedelta(hours=8)).isoformat()
+
+    added: List[Dict[str, Any]] = []
+    for dummy in DUMMY_ACTIVE_COURSES:
+        if dummy["course_code"] not in existing_codes:
+            try:
+                session = create_session(
+                    course_code=dummy["course_code"],
+                    course_name=dummy["course_name"],
+                    room_lat=DEFAULT_CLASSROOM_LAT,
+                    room_lon=DEFAULT_CLASSROOM_LON,
+                    starts_at=starts,
+                    ends_at=ends,
+                    room_name=dummy["room_name"],
+                    radius_m=dummy["radius_m"],
+                )
+                if session:
+                    added.append(session)
+                    existing_codes.add(dummy["course_code"])
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Gagal membuat sesi dummy %s: %s", dummy["course_code"], exc)
+
+    return [*existing_sessions, *added]
+
+
 def get_active_sessions(now: Optional[str] = None) -> List[Dict[str, Any]]:
     moment = now or _now_iso()
+    sessions: List[Dict[str, Any]] = []
     if _USE_NEON:
         with _neon_conn() as conn:
             cur = conn.cursor()
@@ -1225,17 +1287,22 @@ def get_active_sessions(now: Optional[str] = None) -> List[Dict[str, Any]]:
                 (moment, moment),
             )
             rows = cur.fetchall()
-        return [_session_row_to_dict(r) for r in rows]
+        sessions = [_session_row_to_dict(r) for r in rows]
+    else:
+        conn = _get_sqlite_conn()
+        try:
+            rows = conn.execute(
+                "SELECT * FROM sessions WHERE starts_at <= ? AND ends_at >= ? ORDER BY starts_at ASC",
+                (moment, moment),
+            ).fetchall()
+        finally:
+            conn.close()
+        sessions = [_session_row_to_dict([dict(r).get(c) for c in _SESSION_COLUMNS]) for r in rows]
 
-    conn = _get_sqlite_conn()
-    try:
-        rows = conn.execute(
-            "SELECT * FROM sessions WHERE starts_at <= ? AND ends_at >= ? ORDER BY starts_at ASC",
-            (moment, moment),
-        ).fetchall()
-    finally:
-        conn.close()
-    return [_session_row_to_dict([dict(r).get(c) for c in _SESSION_COLUMNS]) for r in rows]
+    if len(sessions) < len(DUMMY_ACTIVE_COURSES):
+        sessions = ensure_dummy_active_sessions(sessions)
+
+    return sessions
 
 
 def list_sessions(limit: int = 50) -> List[Dict[str, Any]]:

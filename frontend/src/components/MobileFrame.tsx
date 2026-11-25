@@ -18,11 +18,11 @@ export const MobileFrame: React.FC<MobileFrameProps> = ({
   role,
 }) => {
   return (
-    <div className="w-full flex flex-col min-h-screen">
+    <div className="w-full flex flex-col min-h-screen text-[var(--ink)]">
       {/* Main Content Area */}
-      <div className="flex-1 w-full pb-20 sm:pb-8">{children}</div>
+      <div className="flex-1 w-full pb-24 sm:pb-8">{children}</div>
 
-      {/* Clean Fixed Bottom Navigation Bar on Mobile Screens (< 640px) */}
+      {/* Fixed Bottom Navigation Bar on Mobile Screens (< 640px) */}
       <div className="fixed bottom-0 inset-x-0 z-50 sm:hidden">
         <MobileBottomNav
           activeTab={activeTab}

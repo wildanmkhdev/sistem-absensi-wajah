@@ -8,13 +8,14 @@ import { BenchmarkPage } from './pages/BenchmarkPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { SessionsPage } from './pages/SessionsPage';
-import { fetchMe, fetchOversightAttendances, setAuthToken } from './api';
+import { ProfilePage } from './pages/ProfilePage';
+import { ApiError, fetchMe, fetchOversightAttendances, setAuthToken } from './api';
 import { clearSession, readSession, writeSession } from './auth';
 import type { Role, Session } from './auth';
 
 const ALLOWED_TABS: Record<Role, string[]> = {
-  mahasiswa: ['presensi', 'history', 'register'],
-  dosen: ['sessions', 'oversight', 'history', 'benchmark'],
+  mahasiswa: ['presensi', 'history', 'register', 'profile'],
+  dosen: ['sessions', 'oversight', 'history', 'benchmark', 'profile'],
 };
 
 export const App: React.FC = () => {
@@ -67,8 +68,12 @@ export const App: React.FC = () => {
         writeSession(refreshed);
         setSession(refreshed);
       })
-      .catch(() => {
-        if (active) handleLogout();
+      .catch((err: unknown) => {
+        // HANYA logout jika server secara eksplisit mengembalikan 401 Unauthorized.
+        // Jangan logout pada gangguan jaringan, server cold start, atau kegagalan sementara.
+        if (active && err instanceof ApiError && err.status === 401) {
+          handleLogout();
+        }
       });
 
     return () => {
@@ -124,7 +129,7 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-800 flex flex-col font-sans selection:bg-teal-100 selection:text-teal-900">
+    <div className="min-h-screen bg-[var(--bg)] text-[var(--ink)] flex flex-col font-sans selection:bg-[var(--yellow)] selection:text-[var(--on-yellow)]">
       {/* Top Navbar */}
       <Navbar
         activeTab={activeTab}
@@ -136,7 +141,7 @@ export const App: React.FC = () => {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-6xl w-full mx-auto px-3.5 sm:px-6 py-3.5 sm:py-6">
+      <main className="flex-1 max-w-6xl w-full mx-auto px-3.5 sm:px-6 py-4 sm:py-7">
         <MobileFrame
           activeTab={activeTab}
           setActiveTab={setActiveTab}
@@ -170,16 +175,28 @@ export const App: React.FC = () => {
               onOpenRegisterAccount={handleOpenRegister}
             />
           )}
+
+          {activeTab === 'profile' && (
+            <ProfilePage
+              session={session}
+              onLogout={handleLogout}
+              onNavigateTab={setActiveTab}
+            />
+          )}
         </MobileFrame>
       </main>
 
-      {/* Clean Desktop Footer */}
-      <footer className="hidden sm:block bg-white border-t border-slate-200/80 py-5 text-xs text-slate-500 mt-8">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between">
-          <span className="font-bold text-slate-700">
-            PresenSI • Sistem Presensi Wajah &amp; Human Oversight
-          </span>
-          <span className="text-slate-400">UU PDP No. 27/2022</span>
+      {/* Editorial Paper & Mono Desktop Colophon Footer */}
+      <footer className="hidden sm:block bg-[var(--surface)] border-t-2 border-[var(--edge)] py-4 text-xs text-[var(--soft)] mt-10">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2.5">
+            <span className="font-display text-base text-[var(--ink)] leading-none">PresenSI</span>
+            <span className="text-[var(--muted)]">•</span>
+            <span className="font-mono text-[11px] uppercase tracking-wider text-[var(--soft)]">
+              Sistem Presensi Wajah &amp; Human Oversight
+            </span>
+          </div>
+          <span className="hlb-tag paper">UU PDP No. 27/2022</span>
         </div>
       </footer>
     </div>

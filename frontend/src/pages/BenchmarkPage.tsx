@@ -1,14 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import {
-  Award,
-  RefreshCw,
-  Scale,
-  ShieldCheck,
-  X,
-} from 'lucide-react';
+import { RefreshCw, Scale, X } from 'lucide-react';
 import { fetchBenchmark, simulateCase } from '../api';
 import { BenchmarkDetailModal } from '../components/BenchmarkDetailModal';
 import type { BenchmarkCase, SimulatedPresensiResponse } from '../types';
+import { IconAcademicShield } from '../components/icons/FlaticonIcons';
 
 export const BenchmarkPage: React.FC = () => {
   const [benchmarkData, setBenchmarkData] = useState<BenchmarkCase[]>([]);
@@ -55,143 +50,233 @@ export const BenchmarkPage: React.FC = () => {
     void runSimulation(item);
   };
 
+  const renderStatusTag = (status: string) => {
+    if (status === 'HADIR') {
+      return <span className="hlb-tag ok">Hadir</span>;
+    }
+    if (status === 'TERLAMBAT') {
+      return <span className="hlb-tag accent">Terlambat</span>;
+    }
+    if (status === 'PERLU_VERIFIKASI_DOSEN' || status === 'OVERSIGHT') {
+      return <span className="hlb-tag paper">Oversight</span>;
+    }
+    return <span className="hlb-tag warn">Ditolak</span>;
+  };
+
+  const toScorePercent = (score: number) => {
+    const raw = score <= 1 ? score * 100 : score;
+    return Math.max(0, Math.min(100, Math.round(raw)));
+  };
+
+  const totalCases = benchmarkData.length;
+  const oversightCount = benchmarkData.filter(
+    (item) =>
+      item.requires_human_oversight || item.status_uupdp === 'PERLU_VERIFIKASI_DOSEN'
+  ).length;
+  const autoCount = Math.max(0, totalCases - oversightCount);
+  const avgScore =
+    totalCases > 0
+      ? Math.round(
+          benchmarkData.reduce((acc, item) => acc + toScorePercent(item.face_score), 0) /
+            totalCases
+        )
+      : 0;
+
   return (
-    <div className="space-y-4 sm:space-y-6 max-w-6xl mx-auto">
-      {/* Title */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <span className="text-[10px] font-bold uppercase tracking-wider text-teal-700 bg-teal-50 px-2.5 py-0.5 rounded-md border border-teal-200/60">
-            Studi Kasus Modul 13 • Kelompok 6
-          </span>
-          <h1 className="text-lg sm:text-xl font-bold text-slate-800 tracking-tight mt-1">
-            Matriks Kasus M1 s.d. M6
-          </h1>
-          <p className="text-xs text-slate-500">
-            Perbandingan aturan kaku vs aturan berkeadilan Human Oversight (UU PDP Pasal 34).
-          </p>
+    <div className="space-y-5 max-w-6xl mx-auto font-sans">
+      {/* Header */}
+      <div className="hlb-panel p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5 min-w-0">
+          <div className="w-12 h-12 rounded-xl bg-[var(--yellow)] border-2 border-[var(--on-yellow)] shadow-[3px_3px_0_var(--shadow)] flex items-center justify-center shrink-0">
+            <IconAcademicShield className="w-6 h-6" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="font-display font-normal text-2xl sm:text-3xl leading-tight text-[var(--ink)]">
+                Matriks Kasus Pengujian <mark className="hlb-mark">M1–M6</mark>
+              </h1>
+              <span className="hlb-tag paper font-mono">Modul 13</span>
+            </div>
+            <p className="text-sm text-[var(--soft)] mt-0.5">
+              Komparasi aturan kaku (rigid) vs prinsip Human Oversight UU PDP No. 27/2022 Pasal 34.
+            </p>
+          </div>
         </div>
 
         <button
           onClick={() => void loadBenchmark()}
           disabled={isLoading}
-          className="flex items-center space-x-1.5 text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 px-3.5 py-2 rounded-xl border border-slate-200 transition shadow-xs self-start sm:self-center cursor-pointer"
+          className="hlb-btn-secondary text-xs font-mono uppercase tracking-wider px-4 py-2.5 flex items-center gap-2 cursor-pointer shrink-0 self-start sm:self-center disabled:opacity-50"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-teal-600' : ''}`} />
+          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
           <span>Segarkan Data</span>
         </button>
       </div>
 
-      {/* Ringkasan */}
-      <p className="flex items-center space-x-2 text-xs text-slate-600 bg-white rounded-2xl border border-slate-200/80 px-4 py-3 shadow-xs">
-        <ShieldCheck className="w-4 h-4 text-teal-600 shrink-0" />
-        <span>
-          <strong className="font-bold text-slate-800">3 dari 6</strong> kasus dialihkan ke verifikasi dosen;{' '}
-          <strong className="font-bold text-slate-800">3</strong> diputus otomatis. Simulasi berjalan dalam mode <em>dry-run</em> tanpa mengotori tabel kehadiran nyata.
-        </span>
-      </p>
+      {/* Top 4-Tile KPI Strip (Harness Leaderboard Aesthetic) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="hlb-tile-key p-4 flex flex-col justify-between">
+          <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-[var(--on-yellow-soft)]">
+            Total Kasus Uji
+          </span>
+          <div className="font-display font-normal text-3xl sm:text-4xl leading-none text-[var(--on-yellow)] mt-2 tabular-nums">
+            {totalCases || 6}
+          </div>
+          <span className="font-mono text-[11px] text-[var(--on-yellow-soft)] mt-1.5">
+            Skenario M1 s.d. M6
+          </span>
+        </div>
+
+        <div className="hlb-tile p-4 flex flex-col justify-between">
+          <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-[var(--soft)]">
+            Human Oversight
+          </span>
+          <div className="font-display font-normal text-3xl sm:text-4xl leading-none text-[var(--ink)] mt-2 tabular-nums">
+            {totalCases > 0 ? oversightCount : 3}
+          </div>
+          <span className="font-mono text-[11px] text-[var(--soft)] mt-1.5">
+            UU PDP Ps. 34
+          </span>
+        </div>
+
+        <div className="hlb-tile p-4 flex flex-col justify-between">
+          <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-[var(--soft)]">
+            Keputusan Otomatis
+          </span>
+          <div className="font-display font-normal text-3xl sm:text-4xl leading-none text-[var(--ink)] mt-2 tabular-nums">
+            {totalCases > 0 ? autoCount : 3}
+          </div>
+          <span className="font-mono text-[11px] text-[var(--soft)] mt-1.5">
+            Validasi Langsung
+          </span>
+        </div>
+
+        <div className="hlb-tile p-4 flex flex-col justify-between">
+          <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-[var(--soft)]">
+            Rata-Rata Skor Wajah
+          </span>
+          <div className="font-display font-normal text-3xl sm:text-4xl leading-none text-[var(--ink)] mt-2 tabular-nums">
+            {totalCases > 0 ? `${avgScore}%` : '—'}
+          </div>
+          <div className="hlb-progress mt-2">
+            <div style={{ width: `${avgScore}%` }} />
+          </div>
+        </div>
+      </div>
+
+      {/* Ringkasan Banner */}
+      <div className="hlb-alert info p-4 text-sm text-[var(--ink)] flex items-start gap-3">
+        <span className="hlb-tag accent shrink-0 mt-0.5">Dry-Run</span>
+        <p className="leading-relaxed">
+          <strong className="font-semibold">3 dari 6</strong> kasus dialihkan ke verifikasi dosen;{' '}
+          <strong className="font-semibold">3 kasus</strong> diputuskan otomatis oleh sistem. Uji
+          coba dijalankan secara dry-run tanpa mengubah data presensi riil.
+        </p>
+      </div>
 
       {simulationError && (
-        <div className="flex items-center justify-between p-3.5 rounded-2xl border text-xs bg-rose-50 border-rose-200 text-rose-800">
+        <div className="hlb-alert danger flex items-center justify-between gap-3 p-4 text-sm font-medium text-[var(--ink)]">
           <span>{simulationError}</span>
           <button
             onClick={() => setSimulationError(null)}
-            className="text-rose-500 hover:text-rose-700 text-xs font-semibold px-2 py-0.5 cursor-pointer"
+            className="hlb-btn-secondary text-[11px] font-mono uppercase tracking-wider px-2.5 py-1 cursor-pointer shrink-0"
           >
             Tutup
           </button>
         </div>
       )}
 
-      {/* Benchmark Table */}
-      <div className="bg-white rounded-xl border border-slate-200/80 p-4 shadow-xs space-y-3.5">
-        <h3 className="text-xs sm:text-sm font-bold text-slate-800">
-          Tabel Skenario Pengujian Resmi
-        </h3>
+      {/* Leaderboard Table Panel */}
+      <div className="hlb-panel overflow-hidden">
+        <div className="px-5 py-3.5 border-b-2 border-[var(--edge)] flex items-center justify-between gap-2 bg-[var(--surface)]">
+          <h2 className="font-display font-normal text-xl text-[var(--ink)]">
+            Leaderboard Evaluasi Kebijakan
+          </h2>
+          <span className="font-mono text-[11px] uppercase tracking-wider text-[var(--soft)]">
+            Rigid vs UU PDP
+          </span>
+        </div>
 
-        <div className="overflow-x-auto rounded-lg border border-slate-200/70">
-          <table className="w-full text-left text-xs text-slate-600">
-            <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] font-bold border-b border-slate-200/70">
+        <div className="overflow-x-auto">
+          <table className="hlb-table w-full text-left text-sm">
+            <thead>
               <tr>
-                <th className="px-3 py-3">Kasus</th>
-                <th className="px-3.5 py-3">Mahasiswa</th>
-                <th className="px-3 py-3 text-center">Skor</th>
-                <th className="px-3 py-3 text-center">Jarak</th>
-                <th className="px-3 py-3 text-center">Telat</th>
-                <th className="px-3 py-3 text-center">Awal</th>
-                <th className="px-3 py-3 text-center">UU PDP</th>
-                <th className="px-3 py-3 text-right">Aksi</th>
+                <th className="px-5 py-3.5">Kasus</th>
+                <th className="px-4 py-3.5">Mahasiswa</th>
+                <th className="px-4 py-3.5 min-w-[160px]">Skor Wajah</th>
+                <th className="px-3 py-3.5 text-center">Jarak GPS</th>
+                <th className="px-3 py-3.5 text-center">Telat</th>
+                <th className="px-3 py-3.5 text-center">Aturan Kaku</th>
+                <th className="px-3 py-3.5 text-center">UU PDP</th>
+                <th className="px-5 py-3.5 text-right">Aksi</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 font-sans">
+            <tbody>
               {benchmarkData.map((item) => {
                 const isRunning = runningCaseId === item.case_id;
+                const scorePct = toScorePercent(item.face_score);
+                const isPassedOrProtected =
+                  item.status_uupdp === 'HADIR' ||
+                  item.status_uupdp === 'PERLU_VERIFIKASI_DOSEN';
+
                 return (
-                  <tr key={item.case_id} className="hover:bg-slate-50/80 transition">
-                    <td className="px-3 py-3 font-extrabold text-slate-800 text-xs">
-                      {item.case_id}
+                  <tr key={item.case_id}>
+                    <td className="px-5 py-3.5">
+                      <span className="font-display font-normal text-xl text-[var(--ink)] leading-none">
+                        {item.case_id}
+                      </span>
                     </td>
 
-                    <td className="px-3.5 py-3">
-                      <div className="font-bold text-slate-800 text-xs">{item.name}</div>
-                      <div className="text-[10px] text-slate-400 font-mono">{item.nim}</div>
+                    <td className="px-4 py-3.5">
+                      <div className="font-semibold text-[var(--ink)]">{item.name}</div>
+                      <div className="text-xs text-[var(--soft)] font-mono">NIM {item.nim}</div>
                     </td>
 
-                    <td className="px-3 py-3 text-center font-bold text-slate-700 font-mono">
-                      {item.face_score}
+                    <td className="px-4 py-3.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="hlb-progress flex-1 min-w-[72px]">
+                          <div style={{ width: `${scorePct}%` }} />
+                        </div>
+                        <span className="font-mono text-xs font-semibold text-[var(--ink)] tabular-nums w-11 text-right">
+                          {item.face_score}
+                        </span>
+                      </div>
                     </td>
 
-                    <td className="px-3 py-3 text-center text-slate-700 font-mono">
+                    <td className="px-3 py-3.5 text-center font-mono text-xs text-[var(--soft)] tabular-nums">
                       {item.distance_meters}m
                     </td>
 
-                    <td className="px-3 py-3 text-center text-slate-700 font-mono">
+                    <td className="px-3 py-3.5 text-center font-mono text-xs text-[var(--soft)] tabular-nums">
                       {item.late_minutes}m
                     </td>
 
-                    <td className="px-3 py-3 text-center">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                          item.status_initial === 'HADIR'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : item.status_initial === 'TERLAMBAT'
-                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                            : 'bg-rose-50 text-rose-700 border border-rose-200'
-                        }`}
-                      >
-                        {item.status_initial}
-                      </span>
+                    <td className="px-3 py-3.5 text-center whitespace-nowrap">
+                      {renderStatusTag(item.status_initial)}
                     </td>
 
-                    <td className="px-3 py-3 text-center">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                          item.status_uupdp === 'HADIR'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : item.status_uupdp === 'TERLAMBAT'
-                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                            : 'bg-teal-50 text-teal-700 border border-teal-200'
-                        }`}
-                      >
-                        {item.status_uupdp === 'PERLU_VERIFIKASI_DOSEN'
-                          ? 'VERIFIKASI DOSEN'
-                          : item.status_uupdp}
-                      </span>
+                    <td
+                      className={`px-3 py-3.5 text-center whitespace-nowrap ${
+                        isPassedOrProtected ? 'bg-[var(--paper)]' : ''
+                      }`}
+                    >
+                      {renderStatusTag(item.status_uupdp)}
                     </td>
 
-                    <td className="px-3 py-3 text-right whitespace-nowrap">
-                      <div className="inline-flex items-center space-x-1.5">
+                    <td className="px-5 py-3.5 text-right whitespace-nowrap">
+                      <div className="inline-flex items-center gap-2">
                         <button
                           onClick={() => setDetailItem(item)}
-                          className="text-[11px] font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-md transition cursor-pointer"
+                          className="hlb-btn-secondary text-xs font-mono uppercase tracking-wider px-3 py-1.5 cursor-pointer"
                         >
                           Detail
                         </button>
                         <button
                           onClick={() => void runSimulation(item)}
                           disabled={isRunning || runningCaseId !== null}
-                          className="text-[11px] font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 px-2.5 py-1 rounded-md transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="hlb-btn-primary text-xs font-mono uppercase tracking-wider px-3.5 py-1.5 cursor-pointer disabled:opacity-50"
                         >
-                          {isRunning ? 'Menguji...' : 'Uji Kasus'}
+                          {isRunning ? 'Menguji...' : 'Uji'}
                         </button>
                       </div>
                     </td>
@@ -214,90 +299,73 @@ export const BenchmarkPage: React.FC = () => {
 
       {/* Modal Hasil Simulasi Dry-Run */}
       {simulationResult && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-4">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center space-x-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-teal-50 text-teal-700 flex items-center justify-center font-bold">
-                  <Award className="w-5 h-5 text-teal-600" />
-                </div>
-                <div>
-                  <span className="text-[10px] font-mono font-bold text-teal-700 bg-teal-50 border border-teal-200/60 px-2 py-0.5 rounded">
-                    Simulasi Dry-Run Kasus {simulationResult.case_id}
-                  </span>
-                  <h3 className="text-base font-bold text-slate-800 mt-1">
-                    {simulationResult.name} ({simulationResult.nim})
-                  </h3>
-                </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-[2px] animate-fade-in">
+          <div className="hlb-panel max-w-lg w-full p-6 shadow-[6px_6px_0_var(--shadow)] space-y-4">
+            <div className="flex items-start justify-between gap-3 pb-3 border-b-2 border-[var(--edge)]">
+              <div>
+                <span className="hlb-tag accent font-mono">
+                  Hasil Uji Simulasi Kasus {simulationResult.case_id}
+                </span>
+                <h3 className="font-display font-normal text-2xl text-[var(--ink)] mt-1.5 leading-tight">
+                  {simulationResult.name}
+                </h3>
+                <p className="font-mono text-xs text-[var(--soft)]">
+                  NIM {simulationResult.nim}
+                </p>
               </div>
               <button
                 onClick={() => setSimulationResult(null)}
-                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-full hover:bg-slate-100 transition cursor-pointer"
+                aria-label="Tutup"
+                className="hlb-btn-secondary p-1.5 cursor-pointer shrink-0"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 text-center text-xs">
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-                <span className="text-[10px] text-slate-400 font-bold block uppercase">
-                  Rancangan Awal (Kaku)
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="hlb-tile p-3.5">
+                <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--soft)] block">
+                  Aturan Kaku
                 </span>
-                <span
-                  className={`inline-block mt-1 font-bold px-2 py-0.5 rounded text-xs ${
-                    simulationResult.status_awal === 'HADIR'
-                      ? 'bg-emerald-100 text-emerald-800'
-                      : simulationResult.status_awal === 'TERLAMBAT'
-                      ? 'bg-amber-100 text-amber-800'
-                      : 'bg-rose-100 text-rose-800'
-                  }`}
-                >
-                  {simulationResult.status_awal}
-                </span>
+                <div className="mt-2">{renderStatusTag(simulationResult.status_awal)}</div>
               </div>
 
-              <div className="bg-teal-50/60 p-3 rounded-xl border border-teal-200">
-                <span className="text-[10px] text-teal-700 font-bold block uppercase">
-                  Rancangan UU PDP (Berkeadilan)
+              <div className="hlb-tile bg-[var(--paper)] p-3.5">
+                <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--soft)] block">
+                  Kepatuhan UU PDP
                 </span>
-                <span
-                  className={`inline-block mt-1 font-bold px-2 py-0.5 rounded text-xs ${
-                    simulationResult.status_uupdp === 'HADIR'
-                      ? 'bg-emerald-100 text-emerald-800'
-                      : simulationResult.status_uupdp === 'TERLAMBAT'
-                      ? 'bg-amber-100 text-amber-800'
-                      : 'bg-teal-100 text-teal-800'
-                  }`}
-                >
+                <div className="mt-2 font-mono font-semibold text-xs text-[var(--ink)]">
                   {simulationResult.status_uupdp.replace(/_/g, ' ')}
-                </span>
+                </div>
               </div>
             </div>
 
-            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80 text-xs space-y-1">
-              <span className="font-bold text-slate-700 block">Alasan Keputusan Sistem:</span>
-              <p className="text-slate-600 leading-relaxed text-[11px]">
+            <div className="bg-[var(--bg)] p-3.5 rounded-xl border-2 border-[var(--edge)] text-xs space-y-1">
+              <span className="font-mono text-[10px] uppercase tracking-wider font-semibold text-[var(--soft)] block">
+                Penjelasan Sistem
+              </span>
+              <p className="text-[var(--ink)] leading-relaxed text-sm">
                 {simulationResult.decision_reason}
               </p>
             </div>
 
-            <div className="bg-blue-50/70 p-3 rounded-xl border border-blue-200/80 text-xs space-y-1">
-              <span className="font-bold text-blue-900 flex items-center space-x-1.5">
-                <Scale className="w-3.5 h-3.5 text-blue-700" />
-                <span>Landasan Hukum UU PDP:</span>
+            <div className="hlb-alert info p-3.5 text-xs space-y-1">
+              <span className="font-mono text-[10px] uppercase tracking-wider font-semibold text-[var(--ink)] flex items-center gap-1.5">
+                <Scale className="w-3.5 h-3.5" />
+                <span>Rujukan Hukum UU PDP</span>
               </span>
-              <p className="text-blue-800 leading-relaxed text-[11px]">
+              <p className="text-[var(--ink)] leading-relaxed text-sm">
                 {simulationResult.legal_basis}
               </p>
             </div>
 
-            <div className="pt-2 flex justify-end">
+            <div className="pt-1">
               <button
                 type="button"
                 onClick={() => setSimulationResult(null)}
-                className="w-full py-2.5 rounded-xl font-bold text-xs bg-teal-600 hover:bg-teal-700 text-white transition cursor-pointer"
+                className="hlb-btn-primary w-full h-11 text-xs font-mono uppercase tracking-wider cursor-pointer"
               >
-                Tutup Simulasi
+                Selesai
               </button>
             </div>
           </div>

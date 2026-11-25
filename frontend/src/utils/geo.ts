@@ -57,3 +57,24 @@ export function getCoordinatesAtDistance(
     longitude: Math.round(toDeg(λ2) * 1000000) / 1000000,
   };
 }
+
+/**
+ * Format jarak manusiawi: meter bila < 1000m, kilometer bila >= 1000m
+ * Contoh: 45 m, 70 m, 8.4 km, 1.420 km
+ */
+export function formatDistance(meters: number | null | undefined): string {
+  if (meters === null || meters === undefined || Number.isNaN(meters)) {
+    return '—';
+  }
+  if (meters < 1000) {
+    return `${Math.round(meters)} m`;
+  }
+  const km = meters / 1000;
+  if (km < 10) {
+    return `${km.toFixed(1)} km`;
+  }
+  if (km < 100) {
+    return `${km.toFixed(1)} km`;
+  }
+  return `${Math.round(km).toLocaleString('id-ID')} km`;
+}

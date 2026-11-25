@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { History, RefreshCw, Search, CheckCircle2, Clock, ShieldAlert, XCircle } from 'lucide-react';
+import { History, RefreshCw, Search } from 'lucide-react';
 import { fetchAttendances } from '../api';
 import type { AttendanceRecord, AttendanceStatus } from '../types';
 import type { Role } from '../auth';
+import { IconVerifiedCheck } from '../components/icons/FlaticonIcons';
+import { formatDistance } from '../utils/geo';
 
 interface HistoryPageProps {
   role: Role;
@@ -17,6 +19,21 @@ const formatTime = (timestamp: string): string => {
   }
   return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 };
+
+const STATUS_CONFIG: Record<AttendanceStatus, { tag: string; label: string }> = {
+  HADIR: { tag: 'ok', label: 'Hadir' },
+  TERLAMBAT: { tag: 'accent', label: 'Terlambat' },
+  PERLU_VERIFIKASI_DOSEN: { tag: 'paper', label: 'Oversight' },
+  TIDAK_SAH: { tag: 'warn', label: 'Ditolak' },
+};
+
+const FILTER_OPTIONS: { value: string; label: string }[] = [
+  { value: 'ALL', label: 'Semua Status' },
+  { value: 'HADIR', label: 'Hadir Tepat' },
+  { value: 'TERLAMBAT', label: 'Terlambat' },
+  { value: 'PERLU_VERIFIKASI_DOSEN', label: 'Review Dosen' },
+  { value: 'TIDAK_SAH', label: 'Ditolak' },
+];
 
 export const HistoryPage: React.FC<HistoryPageProps> = ({ role, nim }) => {
   const [attendances, setAttendances] = useState<AttendanceRecord[]>([]);
@@ -39,7 +56,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ role, nim }) => {
   };
 
   useEffect(() => {
-    loadData();
+    void loadData();
   }, []);
 
   const visibleList = nim ? attendances.filter((item) => item.nim === nim) : attendances;
@@ -58,181 +75,251 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ role, nim }) => {
     return matchesSearch && matchesStatus;
   });
 
-  const getStatusBadge = (status: AttendanceStatus) => {
-    switch (status) {
-      case 'HADIR':
-        return (
-          <span className="inline-flex items-center space-x-1 text-emerald-800 bg-emerald-100/80 border border-emerald-200 px-2 py-0.5 rounded-md text-[10px] font-bold">
-            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-            <span>HADIR</span>
-          </span>
-        );
-      case 'TERLAMBAT':
-        return (
-          <span className="inline-flex items-center space-x-1 text-indigo-800 bg-indigo-100/80 border border-indigo-200 px-2 py-0.5 rounded-md text-[10px] font-bold">
-            <Clock className="w-3 h-3 text-indigo-600" />
-            <span>TERLAMBAT</span>
-          </span>
-        );
-      case 'PERLU_VERIFIKASI_DOSEN':
-        return (
-          <span className="inline-flex items-center space-x-1 text-amber-800 bg-amber-100/80 border border-amber-200 px-2 py-0.5 rounded-md text-[10px] font-bold">
-            <ShieldAlert className="w-3 h-3 text-amber-600" />
-            <span>VERIFIKASI DOSEN</span>
-          </span>
-        );
-      case 'TIDAK_SAH':
-        return (
-          <span className="inline-flex items-center space-x-1 text-rose-800 bg-rose-100/80 border border-rose-200 px-2 py-0.5 rounded-md text-[10px] font-bold">
-            <XCircle className="w-3 h-3 text-rose-600" />
-            <span>TIDAK SAH</span>
-          </span>
-        );
-    }
-  };
-
-  const title = isLecturer ? 'Riwayat Kelas' : 'Riwayat Presensi Saya';
+  const title = isLecturer ? 'Riwayat Presensi Kelas' : 'Riwayat Presensi Saya';
 
   return (
-    <div className="space-y-3 sm:space-y-4 max-w-6xl mx-auto">
+    <div className="space-y-5 max-w-6xl mx-auto font-sans">
       {/* Header */}
-      <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <div className="flex items-center space-x-2 flex-wrap">
-            <h1 className="text-lg sm:text-xl font-bold text-slate-800 tracking-tight">{title}</h1>
-            <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">
-              {filteredList.length} rekaman
-            </span>
+      <div className="hlb-panel p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5 min-w-0">
+          <div className="w-12 h-12 rounded-xl bg-[var(--mint)] border-2 border-[var(--edge)] shadow-[3px_3px_0_var(--shadow)] flex items-center justify-center shrink-0">
+            <IconVerifiedCheck className="w-6 h-6" />
           </div>
-          <p className="text-xs text-slate-500">Log presensi, skor wajah, dan keputusan dosen.</p>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="font-display font-normal text-2xl sm:text-3xl leading-tight text-[var(--ink)]">
+                {title}
+              </h1>
+              <span className="hlb-tag paper font-mono tabular-nums">
+                {filteredList.length} Rekaman
+              </span>
+            </div>
+            <p className="text-sm text-[var(--soft)] mt-0.5">
+              Audit log presensi biometrik wajah, jarak GPS geofence, dan keputusan verifikasi dosen.
+            </p>
+          </div>
         </div>
 
         <button
-          onClick={loadData}
+          onClick={() => void loadData()}
           disabled={isLoading}
-          className="flex items-center space-x-1.5 text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 px-3.5 py-2 rounded-xl border border-slate-200 transition shadow-xs self-start sm:self-center cursor-pointer"
+          className="hlb-btn-secondary text-xs font-mono uppercase tracking-wider px-4 py-2.5 flex items-center gap-2 cursor-pointer self-start sm:self-center shrink-0 disabled:opacity-50"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-teal-600' : ''}`} />
+          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
           <span>Segarkan Log</span>
         </button>
       </div>
 
-      {/* Lecturer Filter and Search Bar */}
+      {/* Lecturer Filter Chips and Search Bar */}
       {isLecturer && (
-        <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-200/80 p-3 sm:p-4 shadow-xs flex flex-col sm:flex-row sm:items-center gap-2.5">
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-600 sm:w-48 cursor-pointer"
-          >
-            <option value="ALL">Semua Status</option>
-            <option value="HADIR">Hadir</option>
-            <option value="TERLAMBAT">Terlambat</option>
-            <option value="PERLU_VERIFIKASI_DOSEN">Verifikasi Dosen</option>
-            <option value="TIDAK_SAH">Tidak Sah</option>
-          </select>
+        <div className="hlb-panel p-4 space-y-3.5">
+          <div className="flex flex-wrap items-center gap-2">
+            {FILTER_OPTIONS.map((opt) => {
+              const isActive = statusFilter === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setStatusFilter(opt.value)}
+                  className={`hlb-chip text-[11px] font-mono uppercase tracking-wider px-3.5 py-1.5 cursor-pointer ${
+                    isActive ? 'hlb-chip-on' : ''
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
 
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--soft)]" />
             <input
               type="text"
-              placeholder="Cari NIM, Nama, Kasus..."
+              placeholder="Cari NIM, Nama Mahasiswa, atau Kasus..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full text-xs bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-teal-600 font-medium"
+              className="hlb-input w-full text-sm pl-10 pr-3.5 py-2.5"
             />
           </div>
         </div>
       )}
 
-      {/* Content Table */}
-      <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-200/80 p-3 sm:p-4 shadow-xs">
+      {/* Content Table / Mobile Cards */}
+      <div className="hlb-panel overflow-hidden">
         {isLoading ? (
-          <div className="py-12 flex flex-col items-center justify-center text-slate-400 space-y-2">
-            <RefreshCw className="w-6 h-6 animate-spin text-teal-600" />
-            <span className="text-xs font-semibold">Memuat log presensi...</span>
+          <div className="py-14 flex flex-col items-center justify-center text-[var(--soft)] gap-2.5">
+            <RefreshCw className="w-6 h-6 animate-spin text-[var(--soft)]" />
+            <span className="font-mono text-xs uppercase tracking-wider">
+              Memuat log presensi...
+            </span>
           </div>
         ) : filteredList.length === 0 ? (
-          <div className="py-12 text-center text-slate-400 space-y-1">
-            <History className="w-8 h-8 text-slate-300 mx-auto" />
-            <p className="text-xs font-bold text-slate-700">Tidak Ada Rekaman Ditemukan</p>
-            <p className="text-[11px] text-slate-400">
+          <div className="py-14 px-6 text-center space-y-2">
+            <div className="w-12 h-12 rounded-full bg-[var(--bg)] border-2 border-[var(--edge)] flex items-center justify-center mx-auto">
+              <History className="w-6 h-6 text-[var(--soft)]" />
+            </div>
+            <p className="font-display font-normal text-2xl text-[var(--ink)]">
+              Tidak Ada Rekaman Ditemukan
+            </p>
+            <p className="text-sm text-[var(--soft)]">
               {isLecturer
-                ? 'Belum ada presensi yang cocok dengan filter.'
+                ? 'Belum ada presensi yang cocok dengan filter pencarian.'
                 : 'Silakan lakukan presensi pada menu Presensi.'}
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-slate-200/70">
-            <table className="w-full text-left text-xs text-slate-700">
-              <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] font-bold border-b border-slate-200/70">
-                <tr>
-                  <th className="px-3.5 py-3">Mahasiswa</th>
-                  <th className="px-3 py-3 text-center">Waktu</th>
-                  <th className="px-3 py-3 text-center">Skor</th>
-                  <th className="px-3 py-3 text-center">Jarak</th>
-                  <th className="px-3 py-3 text-center">Telat</th>
-                  <th className="px-3 py-3 text-center">Status</th>
-                  <th className="px-3.5 py-3 hidden sm:table-cell">Catatan / Alasan</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredList.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="px-3.5 py-3">
-                      <div className="flex items-center space-x-2">
-                        <div className="w-7 h-7 rounded-lg bg-teal-50 text-teal-700 flex items-center justify-center font-bold text-xs shrink-0">
-                          {item.name ? item.name.charAt(0) : 'M'}
-                        </div>
-                        <div>
-                          <span className="font-bold text-slate-800 block text-xs">
+          <>
+            {/* Desktop Table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="hlb-table w-full text-left text-sm">
+                <thead>
+                  <tr>
+                    <th className="px-5 py-3.5">Mahasiswa</th>
+                    <th className="px-3 py-3.5 text-center">Waktu</th>
+                    <th className="px-3 py-3.5 text-center">Skor Wajah</th>
+                    <th className="px-3 py-3.5 text-center">Jarak GPS</th>
+                    <th className="px-3 py-3.5 text-center">Telat</th>
+                    <th className="px-3 py-3.5 text-center">Status</th>
+                    <th className="px-5 py-3.5">Catatan / Alasan</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredList.map((item) => {
+                    const statusConf = STATUS_CONFIG[item.status] || {
+                      tag: 'neutral',
+                      label: item.status,
+                    };
+                    return (
+                      <tr key={item.id}>
+                        <td className="px-5 py-3.5">
+                          <div className="font-semibold text-[var(--ink)]">
                             {item.name || 'Mahasiswa'}
+                          </div>
+                          <div className="text-xs text-[var(--soft)] font-mono mt-0.5">
+                            NIM {item.nim}
+                            {item.course_name ? ` • ${item.course_name}` : ''}
+                            {item.simulated_case ? ` • ${item.simulated_case}` : ''}
+                          </div>
+                        </td>
+
+                        <td className="px-3 py-3.5 text-center font-mono text-xs text-[var(--soft)] tabular-nums">
+                          {formatTime(item.timestamp)}
+                        </td>
+
+                        <td className="px-3 py-3.5 text-center font-mono text-xs font-semibold text-[var(--ink)] tabular-nums">
+                          {(item.similarity_score * 100).toFixed(0)}%
+                        </td>
+
+                        <td className="px-3 py-3.5 text-center font-mono text-xs text-[var(--soft)] tabular-nums">
+                          {formatDistance(item.distance_meters)}
+                        </td>
+
+                        <td className="px-3 py-3.5 text-center font-mono text-xs text-[var(--soft)] tabular-nums">
+                          {item.late_minutes}m
+                        </td>
+
+                        <td className="px-3 py-3.5 text-center whitespace-nowrap">
+                          <span className={`hlb-tag ${statusConf.tag}`}>
+                            {statusConf.label}
                           </span>
-                          <span className="text-[10px] text-slate-400 block font-mono">
-                            NIM: {item.nim} {item.course_name ? `• ${item.course_name}` : ''} {item.simulated_case ? `• Kasus ${item.simulated_case}` : ''}
-                          </span>
+                        </td>
+
+                        <td className="px-5 py-3.5 max-w-xs text-[var(--soft)] text-xs">
+                          <div
+                            className="line-clamp-2"
+                            title={item.lecturer_note || item.decision_reason}
+                          >
+                            {item.lecturer_note ? (
+                              <span className="text-[var(--ink)] font-semibold">
+                                [Dosen]: {item.lecturer_note}
+                              </span>
+                            ) : (
+                              item.decision_reason
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Cards */}
+            <div className="md:hidden p-4 space-y-3">
+              {filteredList.map((item) => {
+                const statusConf = STATUS_CONFIG[item.status] || {
+                  tag: 'neutral',
+                  label: item.status,
+                };
+                return (
+                  <div key={item.id} className="hlb-tile p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-semibold text-[var(--ink)] text-sm">
+                          {item.name || 'Mahasiswa'}
+                        </div>
+                        <div className="font-mono text-[11px] text-[var(--soft)] truncate">
+                          NIM {item.nim}
+                          {item.simulated_case ? ` • ${item.simulated_case}` : ''}
                         </div>
                       </div>
-                    </td>
-
-                    <td className="px-3 py-3 text-center font-mono text-[11px] text-slate-600">
-                      {formatTime(item.timestamp)}
-                    </td>
-
-                    <td className="px-3 py-3 text-center">
-                      <span className="font-bold text-slate-800 font-mono text-xs">
-                        {(item.similarity_score * 100).toFixed(0)}%
+                      <span className={`hlb-tag ${statusConf.tag} shrink-0`}>
+                        {statusConf.label}
                       </span>
-                    </td>
+                    </div>
 
-                    <td className="px-3 py-3 text-center font-mono text-xs">
-                      {item.distance_meters.toFixed(0)}m
-                    </td>
+                    <div className="grid grid-cols-4 gap-1.5 text-center">
+                      <div className="bg-[var(--bg)] border border-[var(--line)] rounded-lg p-1.5">
+                        <span className="block font-mono text-[9px] uppercase text-[var(--soft)]">
+                          Waktu
+                        </span>
+                        <span className="font-mono text-[11px] font-semibold text-[var(--ink)] tabular-nums">
+                          {formatTime(item.timestamp)}
+                        </span>
+                      </div>
+                      <div className="bg-[var(--bg)] border border-[var(--line)] rounded-lg p-1.5">
+                        <span className="block font-mono text-[9px] uppercase text-[var(--soft)]">
+                          Wajah
+                        </span>
+                        <span className="font-mono text-[11px] font-semibold text-[var(--ink)] tabular-nums">
+                          {(item.similarity_score * 100).toFixed(0)}%
+                        </span>
+                      </div>
+                      <div className="bg-[var(--bg)] border border-[var(--line)] rounded-lg p-1.5">
+                        <span className="block font-mono text-[9px] uppercase text-[var(--soft)]">
+                          GPS
+                        </span>
+                        <span className="font-mono text-[11px] font-semibold text-[var(--ink)] tabular-nums">
+                          {formatDistance(item.distance_meters)}
+                        </span>
+                      </div>
+                      <div className="bg-[var(--bg)] border border-[var(--line)] rounded-lg p-1.5">
+                        <span className="block font-mono text-[9px] uppercase text-[var(--soft)]">
+                          Telat
+                        </span>
+                        <span className="font-mono text-[11px] font-semibold text-[var(--ink)] tabular-nums">
+                          {item.late_minutes}m
+                        </span>
+                      </div>
+                    </div>
 
-                    <td className="px-3 py-3 text-center font-mono text-xs">
-                      {item.late_minutes}m
-                    </td>
-
-                    <td className="px-3 py-3 text-center whitespace-nowrap">
-                      {getStatusBadge(item.status)}
-                    </td>
-
-                    <td className="px-3.5 py-3 max-w-xs text-slate-600 text-[11px] hidden sm:table-cell">
-                      <div className="line-clamp-2" title={item.lecturer_note || item.decision_reason}>
+                    {(item.lecturer_note || item.decision_reason) && (
+                      <div className="text-xs text-[var(--soft)] bg-[var(--bg)] border border-[var(--line)] rounded-lg p-2.5 leading-relaxed">
                         {item.lecturer_note ? (
-                          <span className="text-teal-800 font-medium">
+                          <span className="text-[var(--ink)] font-semibold">
                             [Dosen]: {item.lecturer_note}
                           </span>
                         ) : (
                           item.decision_reason
                         )}
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
     </div>

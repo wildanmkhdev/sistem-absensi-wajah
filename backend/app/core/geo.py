@@ -5,10 +5,10 @@ from typing import Tuple
 # Radius bumi dalam meter (WGS 84 mean radius)
 EARTH_RADIUS_METERS: float = 6371000.0
 
-# Koordinat Ruang Kuliah Default (Kampus / Gedung Perkuliahan)
-# Dapat dikonfigurasi melalui environment variable
-DEFAULT_CLASSROOM_LAT: float = float(os.getenv("CLASSROOM_LAT", "-6.200000"))
-DEFAULT_CLASSROOM_LON: float = float(os.getenv("CLASSROOM_LON", "106.816666"))
+# Koordinat Ruang Kuliah Default: UINSU Kampus IV Tuntungan Medan
+# Dapat dikonfigurasi melalui environment variable CLASSROOM_LAT & CLASSROOM_LON
+DEFAULT_CLASSROOM_LAT: float = float(os.getenv("CLASSROOM_LAT", "3.493832"))
+DEFAULT_CLASSROOM_LON: float = float(os.getenv("CLASSROOM_LON", "98.587816"))
 
 # Batas toleransi jarak berdasarkan regulasi kehadiran
 MAX_VALID_DISTANCE_METERS: float = 50.0

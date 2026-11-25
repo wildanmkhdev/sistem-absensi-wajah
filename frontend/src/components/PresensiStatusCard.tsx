@@ -1,36 +1,140 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Calendar, CheckCircle2, Clock, ShieldAlert, XCircle } from 'lucide-react';
-import type { AttendanceRecord, AttendanceStatus } from '../types';
+import { CheckCircle2, Clock, ShieldAlert } from 'lucide-react';
+import type { AttendanceRecord } from '../types';
 import type { Session } from '../auth';
+import { IconStudentCard } from './icons/FlaticonIcons';
 
 interface PresensiStatusCardProps {
   student: Session;
   records: AttendanceRecord[];
 }
 
-const STATUS_BADGE: Record<AttendanceStatus, { label: string; className: string }> = {
-  HADIR: {
-    label: 'Hadir',
-    className: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-  },
-  TERLAMBAT: {
-    label: 'Terlambat',
-    className: 'bg-indigo-100 text-indigo-800 border-indigo-200',
-  },
-  PERLU_VERIFIKASI_DOSEN: {
-    label: 'Verifikasi Dosen',
-    className: 'bg-amber-100 text-amber-800 border-amber-200',
-  },
-  TIDAK_SAH: {
-    label: 'Tidak Sah',
-    className: 'bg-rose-100 text-rose-800 border-rose-200',
-  },
-};
+const AttendancePieChart: React.FC<{
+  rate: number;
+  hadir: number;
+  terlambat: number;
+  review: number;
+  tidakSah: number;
+  total: number;
+}> = ({ rate, hadir, terlambat, review, tidakSah, total }) => {
+  const r = 30;
+  const stroke = 7;
+  const c = 2 * Math.PI * r; // ≈ 188.495
 
-const toDateKey = (date: Date): string => {
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${date.getFullYear()}-${month}-${day}`;
+  if (total === 0) {
+    return (
+      <div className="relative flex items-center justify-center shrink-0 w-20 h-20">
+        <svg className="w-20 h-20 -rotate-90 transform" viewBox="0 0 76 76">
+          <circle
+            cx="38"
+            cy="38"
+            r={r}
+            fill="transparent"
+            stroke="var(--line)"
+            strokeWidth={stroke}
+          />
+          <circle
+            cx="38"
+            cy="38"
+            r={r}
+            fill="transparent"
+            stroke="var(--green)"
+            strokeWidth={stroke}
+            strokeDasharray={`${c} 0`}
+            strokeLinecap="round"
+          />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+          <span className="font-display font-normal text-lg text-[var(--ink)] leading-none tabular-nums">
+            100%
+          </span>
+          <span className="font-mono text-[8px] uppercase text-[var(--soft)] mt-0.5">Hadir</span>
+        </div>
+      </div>
+    );
+  }
+
+  const hadirLen = (hadir / total) * c;
+  const terlambatLen = (terlambat / total) * c;
+  const reviewLen = (review / total) * c;
+  const tidakSahLen = (tidakSah / total) * c;
+
+  const hadirOffset = 0;
+  const terlambatOffset = hadirLen;
+  const reviewOffset = hadirLen + terlambatLen;
+  const tidakSahOffset = hadirLen + terlambatLen + reviewLen;
+
+  return (
+    <div
+      className="relative flex items-center justify-center shrink-0 w-20 h-20"
+      title={`Tepat Waktu: ${hadir}, Terlambat: ${terlambat}, Review: ${review}, Tidak Sah: ${tidakSah}`}
+    >
+      <svg className="w-20 h-20 -rotate-90 transform" viewBox="0 0 76 76">
+        <circle
+          cx="38"
+          cy="38"
+          r={r}
+          fill="transparent"
+          stroke="var(--line)"
+          strokeWidth={stroke}
+        />
+        {hadir > 0 && (
+          <circle
+            cx="38"
+            cy="38"
+            r={r}
+            fill="transparent"
+            stroke="var(--green)"
+            strokeWidth={stroke}
+            strokeDasharray={`${hadirLen} ${c - hadirLen}`}
+            strokeDashoffset={-hadirOffset}
+          />
+        )}
+        {terlambat > 0 && (
+          <circle
+            cx="38"
+            cy="38"
+            r={r}
+            fill="transparent"
+            stroke="var(--orange)"
+            strokeWidth={stroke}
+            strokeDasharray={`${terlambatLen} ${c - terlambatLen}`}
+            strokeDashoffset={-terlambatOffset}
+          />
+        )}
+        {review > 0 && (
+          <circle
+            cx="38"
+            cy="38"
+            r={r}
+            fill="transparent"
+            stroke="var(--blue)"
+            strokeWidth={stroke}
+            strokeDasharray={`${reviewLen} ${c - reviewLen}`}
+            strokeDashoffset={-reviewOffset}
+          />
+        )}
+        {tidakSah > 0 && (
+          <circle
+            cx="38"
+            cy="38"
+            r={r}
+            fill="transparent"
+            stroke="var(--red)"
+            strokeWidth={stroke}
+            strokeDasharray={`${tidakSahLen} ${c - tidakSahLen}`}
+            strokeDashoffset={-tidakSahOffset}
+          />
+        )}
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+        <span className="font-display font-normal text-lg text-[var(--ink)] leading-none tabular-nums">
+          {rate}%
+        </span>
+        <span className="font-mono text-[8px] uppercase text-[var(--soft)] mt-0.5">Hadir</span>
+      </div>
+    </div>
+  );
 };
 
 export const PresensiStatusCard: React.FC<PresensiStatusCardProps> = ({ student, records }) => {
@@ -50,114 +154,93 @@ export const PresensiStatusCard: React.FC<PresensiStatusCardProps> = ({ student,
   const currentTime = `${now.toLocaleTimeString('id-ID', {
     hour: '2-digit',
     minute: '2-digit',
-    second: '2-digit',
   })} WIB`;
 
-  const counts = useMemo(
-    () =>
-      records.reduce(
-        (acc, record) => {
-          if (record.status === 'HADIR') acc.hadir += 1;
-          else if (record.status === 'TERLAMBAT') acc.terlambat += 1;
-          else if (record.status === 'PERLU_VERIFIKASI_DOSEN') acc.review += 1;
-          return acc;
-        },
-        { hadir: 0, terlambat: 0, review: 0 }
-      ),
-    [records]
-  );
+  const counts = useMemo(() => {
+    return records.reduce(
+      (acc, record) => {
+        if (record.status === 'HADIR') acc.hadir += 1;
+        else if (record.status === 'TERLAMBAT') acc.terlambat += 1;
+        else if (record.status === 'PERLU_VERIFIKASI_DOSEN') acc.review += 1;
+        else acc.tidakSah += 1;
+        return acc;
+      },
+      { hadir: 0, terlambat: 0, review: 0, tidakSah: 0 }
+    );
+  }, [records]);
 
-  const newestRecord = records[0] ?? null;
-  const hasPresensiToday = newestRecord
-    ? newestRecord.timestamp.slice(0, 10) === toDateKey(now)
-    : false;
-
-  const chips = [
-    {
-      label: 'Hadir',
-      count: counts.hadir,
-      icon: CheckCircle2,
-      className: 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
-      iconClass: 'text-emerald-600',
-    },
-    {
-      label: 'Terlambat',
-      count: counts.terlambat,
-      icon: Clock,
-      className: 'bg-indigo-50 text-indigo-700 border-indigo-200/80',
-      iconClass: 'text-indigo-600',
-    },
-    {
-      label: 'Review Dosen',
-      count: counts.review,
-      icon: ShieldAlert,
-      className: 'bg-amber-50 text-amber-700 border-amber-200/80',
-      iconClass: 'text-amber-600',
-    },
-  ];
+  const totalValid = counts.hadir + counts.terlambat;
+  const attendanceRate = records.length > 0 ? Math.round((totalValid / records.length) * 100) : 100;
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4 sm:p-5 space-y-3">
-      <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
-        <div className="flex items-center space-x-2 text-xs font-bold text-slate-700 min-w-0">
-          <Calendar className="w-4 h-4 text-teal-600 shrink-0" />
-          <span className="truncate">{currentDate}</span>
-        </div>
-        <div className="flex items-center space-x-1.5 text-xs font-mono font-bold text-teal-700 bg-teal-50 px-2.5 py-1 rounded-md border border-teal-200/60 shrink-0">
-          <Clock className="w-3.5 h-3.5 animate-pulse text-teal-600" />
-          <span>{currentTime}</span>
-        </div>
+    <div className="hlb-panel p-5 space-y-4">
+      {/* Top Meta Bar */}
+      <div className="flex items-center justify-between gap-2 pb-3 border-b-2 border-[var(--edge)]">
+        <span className="font-sans text-xs font-semibold text-[var(--soft)]">{currentDate}</span>
+        <span className="hlb-tag paper tabular-nums">{currentTime}</span>
       </div>
 
-      <div>
-        <h2 className="text-lg sm:text-xl font-bold text-slate-800 tracking-tight">
-          Halo, {student.name}
-        </h2>
-        <p className="text-xs text-slate-500 font-mono">NIM {student.nim}</p>
-      </div>
-
-      <div className="grid grid-cols-3 gap-2">
-        {chips.map((chip) => {
-          const Icon = chip.icon;
-          return (
-            <div
-              key={chip.label}
-              className={`rounded-xl border px-2.5 py-2 ${chip.className}`}
-            >
-              <div className="flex items-center space-x-1">
-                <Icon className={`w-3.5 h-3.5 ${chip.iconClass}`} />
-                <span className="text-[10px] font-bold uppercase tracking-wider truncate">
-                  {chip.label}
-                </span>
-              </div>
-              <span className="text-lg font-black font-mono leading-tight">{chip.count}</span>
+      {/* Student Profile Header & Attendance Rate Pie Chart */}
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center space-x-3.5 min-w-0">
+          <div className="w-12 h-12 rounded-xl bg-[var(--yellow)] border-2 border-[var(--on-yellow)] shadow-[3px_3px_0_var(--shadow)] flex items-center justify-center text-[var(--on-yellow)] shrink-0">
+            <IconStudentCard className="w-7 h-7" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-display font-normal text-xl sm:text-2xl text-[var(--ink)] leading-tight truncate">
+                {student.name}
+              </span>
+              <span className="hlb-tag neutral shrink-0">NIM {student.nim}</span>
             </div>
-          );
-        })}
+            <p className="font-sans text-xs text-[var(--soft)] truncate mt-0.5">
+              Mahasiswa Aktif • Program Studi Sarjana
+            </p>
+          </div>
+        </div>
+
+        {/* Attendance Rate SVG Pie/Donut Chart */}
+        <AttendancePieChart
+          rate={attendanceRate}
+          hadir={counts.hadir}
+          terlambat={counts.terlambat}
+          review={counts.review}
+          tidakSah={counts.tidakSah}
+          total={records.length}
+        />
       </div>
 
-      <div className="flex items-center justify-between gap-2 rounded-xl bg-slate-50 border border-slate-200/70 px-3 py-2">
-        <span className="text-[11px] font-semibold text-slate-500">Status hari ini</span>
-        {hasPresensiToday && newestRecord ? (
-          <span
-            className={`inline-flex items-center space-x-1 px-2 py-0.5 rounded-md border text-[10px] font-bold ${
-              STATUS_BADGE[newestRecord.status].className
-            }`}
-          >
-            {newestRecord.status === 'TIDAK_SAH' ? (
-              <XCircle className="w-3 h-3" />
-            ) : newestRecord.status === 'PERLU_VERIFIKASI_DOSEN' ? (
-              <ShieldAlert className="w-3 h-3" />
-            ) : newestRecord.status === 'TERLAMBAT' ? (
-              <Clock className="w-3 h-3" />
-            ) : (
-              <CheckCircle2 className="w-3 h-3" />
-            )}
-            <span>{STATUS_BADGE[newestRecord.status].label}</span>
-          </span>
-        ) : (
-          <span className="text-[11px] font-bold text-slate-400">Belum presensi hari ini</span>
-        )}
+      {/* Metric KPI Tiles */}
+      <div className="grid grid-cols-3 gap-3 pt-1">
+        <div className="hlb-tile-key p-3">
+          <div className="flex items-center font-mono text-[10px] font-semibold uppercase tracking-wider text-[var(--on-yellow-soft)] mb-1">
+            <CheckCircle2 className="w-3.5 h-3.5 text-[var(--on-yellow)] mr-1.5 shrink-0" />
+            <span className="truncate">Tepat Waktu</span>
+          </div>
+          <div className="font-display font-normal text-2xl sm:text-3xl text-[var(--on-yellow)] leading-none tabular-nums">
+            {counts.hadir}
+          </div>
+        </div>
+
+        <div className="hlb-tile p-3">
+          <div className="flex items-center font-mono text-[10px] font-semibold uppercase tracking-wider text-[var(--soft)] mb-1">
+            <Clock className="w-3.5 h-3.5 text-[var(--orange)] mr-1.5 shrink-0" />
+            <span className="truncate">Terlambat</span>
+          </div>
+          <div className="font-display font-normal text-2xl sm:text-3xl text-[var(--ink)] leading-none tabular-nums">
+            {counts.terlambat}
+          </div>
+        </div>
+
+        <div className="hlb-tile p-3">
+          <div className="flex items-center font-mono text-[10px] font-semibold uppercase tracking-wider text-[var(--soft)] mb-1">
+            <ShieldAlert className="w-3.5 h-3.5 text-[var(--blue)] mr-1.5 shrink-0" />
+            <span className="truncate">Review Dosen</span>
+          </div>
+          <div className="font-display font-normal text-2xl sm:text-3xl text-[var(--ink)] leading-none tabular-nums">
+            {counts.review}
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Award, BookOpen, Camera, History, ShieldCheck, UserPlus } from 'lucide-react';
+import { Award, BookOpen, Camera, History, ShieldCheck, UserCheck, UserCircle } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { Role } from '../auth';
 
@@ -34,17 +34,19 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             badge: pendingOversightCount > 0 ? pendingOversightCount : null,
           },
           { id: 'history', label: 'Riwayat', icon: History },
-          { id: 'benchmark', label: 'Kasus', icon: Award },
+          { id: 'benchmark', label: 'M1–M6', icon: Award },
+          { id: 'profile', label: 'Akun', icon: UserCircle },
         ]
       : [
           { id: 'presensi', label: 'Presensi', icon: Camera },
           { id: 'history', label: 'Riwayat', icon: History },
-          { id: 'register', label: 'Data Wajah', icon: UserPlus },
+          { id: 'register', label: 'Wajah', icon: UserCheck },
+          { id: 'profile', label: 'Akun', icon: UserCircle },
         ];
 
   return (
-    <div className="bg-white/95 backdrop-blur-md border-t border-slate-200/80 shadow-lg px-2 py-1.5 safe-area-bottom">
-      <div className="max-w-md mx-auto flex items-center justify-around">
+    <div className="bg-[var(--surface)] border-t-2 border-[var(--edge)] px-2 py-2 safe-area-bottom">
+      <div className="max-w-md mx-auto flex items-center justify-around gap-1">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -54,19 +56,31 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               key={item.id}
               type="button"
               onClick={() => setActiveTab(item.id)}
-              className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition cursor-pointer relative ${
-                isActive ? 'text-teal-700 font-extrabold' : 'text-slate-400 hover:text-slate-600'
+              className={`flex flex-col items-center justify-center py-1.5 px-2.5 rounded-full transition-transform cursor-pointer relative min-w-[56px] ${
+                isActive
+                  ? 'bg-[var(--yellow)] text-[var(--on-yellow)] border-2 border-[var(--on-yellow)] shadow-[2px_2px_0_var(--shadow)] font-semibold -translate-y-0.5'
+                  : 'text-[var(--soft)] hover:text-[var(--ink)] border-2 border-transparent'
               }`}
             >
               <div className="relative">
-                <Icon className={`w-5 h-5 ${isActive ? 'text-teal-600' : 'text-slate-400'}`} />
+                <Icon
+                  className={`w-4 h-4 ${
+                    isActive ? 'text-[var(--on-yellow)] stroke-[2.3px]' : 'text-[var(--soft)]'
+                  }`}
+                />
                 {item.badge !== null && item.badge !== undefined && (
-                  <span className="absolute -top-1 -right-2.5 w-4 h-4 rounded-full bg-teal-600 text-white text-[9px] font-black flex items-center justify-center ring-2 ring-white">
+                  <span className="absolute -top-1.5 -right-2.5 min-w-4 h-4 px-1 rounded-full bg-[var(--red)] text-white border border-[var(--edge)] text-[9px] font-mono font-semibold flex items-center justify-center">
                     {item.badge}
                   </span>
                 )}
               </div>
-              <span className="text-[10px] font-bold mt-1 tracking-tight">{item.label}</span>
+              <span
+                className={`font-mono uppercase text-[9.5px] mt-0.5 tracking-wide leading-none ${
+                  isActive ? 'text-[var(--on-yellow)] font-semibold' : 'text-[var(--soft)]'
+                }`}
+              >
+                {item.label}
+              </span>
             </button>
           );
         })}

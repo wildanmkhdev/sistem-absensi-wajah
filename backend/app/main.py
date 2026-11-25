@@ -56,6 +56,7 @@ from app.core.rules import (  # noqa: E402
     evaluate_presensi,
 )
 from app.db.database import (  # noqa: E402
+    DUMMY_ACTIVE_COURSES,
     create_attendance,
     create_or_update_student,
     create_session,
@@ -168,6 +169,9 @@ class PresensiApiRequest(BaseModel):
     gps_accuracy: float = Field(..., ge=0, description="Akurasi GPS dalam meter")
     captured_at: Optional[datetime] = Field(
         None, description="Waktu pengambilan foto di perangkat (audit saja)"
+    )
+    simulated_late_minutes: Optional[float] = Field(
+        None, ge=0, le=300, description="Override simulasi keterlambatan untuk prototype testing"
     )
 
 
@@ -760,7 +764,18 @@ def submit_presensi(
     distance_meters = calculate_distance(
         req.latitude, req.longitude, session["room_lat"], session["room_lon"]
     )
-    late_minutes = compute_late_minutes(starts_at, now)
+
+    if req.simulated_late_minutes is not None:
+        late_minutes = float(req.simulated_late_minutes)
+    else:
+        raw_late = compute_late_minutes(starts_at, now)
+        is_dummy_session = any(
+            session.get("course_code") == c["course_code"] for c in DUMMY_ACTIVE_COURSES
+        )
+        if is_dummy_session and raw_late > MAX_ONTIME_LATE_MINUTES:
+            late_minutes = 5.0  # Default tepat waktu untuk sesi simulasi prototype
+        else:
+            late_minutes = raw_late
 
     evaluation = evaluate_presensi(
         score=similarity,

@@ -1,7 +1,7 @@
 // API Client & Layanan Data Presensi Wajah
 // Satu pintu data: seluruh permintaan melewati FastAPI. Tidak ada akses database dari browser.
 import { API_BASE_URL } from './config';
-import { clearSession } from './auth';
+import { clearSession, readSession } from './auth';
 import type { Session } from './auth';
 import type {
   AttendanceRecord,
@@ -22,13 +22,16 @@ export interface AuthUser {
   name: string;
 }
 
-let authToken: string | null = null;
+let authToken: string | null = (typeof window !== 'undefined' ? readSession()?.token : null) ?? null;
 
 export function setAuthToken(token: string | null): void {
   authToken = token;
 }
 
 export function getAuthToken(): string | null {
+  if (!authToken && typeof window !== 'undefined') {
+    authToken = readSession()?.token ?? null;
+  }
   return authToken;
 }
 
@@ -44,12 +47,14 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
-  if (authToken) headers.set('Authorization', `Bearer ${authToken}`);
+  const token = getAuthToken();
+  if (token) headers.set('Authorization', `Bearer ${token}`);
 
   const res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
 
-  // Sesi kedaluwarsa/dicabut: bersihkan penyimpanan dan beri tahu aplikasi.
-  if (res.status === 401 && path !== '/api/auth/login') {
+  // Sesi kedaluwarsa/dicabut: bersihkan penyimpanan dan beri tahu aplikasi
+  // HANYA jika request memang membawa token tapi ditolak 401 oleh server.
+  if (res.status === 401 && path !== '/api/auth/login' && token) {
     clearSession();
     setAuthToken(null);
     if (typeof window !== 'undefined') {

@@ -3,6 +3,8 @@ import { CheckCircle, RefreshCw, Search } from 'lucide-react';
 import { fetchOversightAttendances, resolveOversight } from '../api';
 import { LecturerResolveModal } from '../components/LecturerResolveModal';
 import type { AttendanceRecord } from '../types';
+import { IconAuditScale } from '../components/icons/FlaticonIcons';
+import { formatDistance } from '../utils/geo';
 
 interface OversightPageProps {
   lecturerName: string;
@@ -17,7 +19,6 @@ export const OversightPage: React.FC<OversightPageProps> = ({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Selected item for resolution modal
   const [selectedAttendance, setSelectedAttendance] = useState<AttendanceRecord | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(
@@ -57,7 +58,7 @@ export const OversightPage: React.FC<OversightPageProps> = ({
           type: 'success',
           message: `Presensi ${selectedAttendance.name || selectedAttendance.nim} berhasil ${
             approved ? 'disetujui sebagai HADIR' : 'ditolak (TIDAK SAH)'
-          }. Catatan audit telah tersimpan.`,
+          }.`,
         });
         setSelectedAttendance(null);
         await loadData();
@@ -84,32 +85,41 @@ export const OversightPage: React.FC<OversightPageProps> = ({
   );
 
   return (
-    <div className="space-y-5 max-w-4xl mx-auto">
+    <div className="space-y-5 max-w-5xl mx-auto font-sans">
       {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-800 tracking-tight">
-              Review Dosen
-            </h1>
-            <span className="text-[10px] font-bold bg-teal-600 text-white px-2 py-0.5 rounded-full whitespace-nowrap">
-              {pendingList.length} menunggu
-            </span>
+      <div className="hlb-panel p-5 sm:p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5 min-w-0">
+          <div className="w-12 h-12 rounded-xl bg-[var(--yellow)] border-2 border-[var(--on-yellow)] shadow-[3px_3px_0_var(--shadow)] flex items-center justify-center shrink-0">
+            <IconAuditScale className="w-6 h-6" />
           </div>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Kasus ambang batas memerlukan keputusan manusia (UU PDP Pasal 34).
-          </p>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="font-display font-normal text-2xl sm:text-3xl leading-tight text-[var(--ink)]">
+                Review Verifikasi Dosen
+              </h1>
+              <span
+                className={`hlb-tag font-mono tabular-nums ${
+                  pendingList.length > 0 ? 'accent' : 'ok'
+                }`}
+              >
+                {pendingList.length} Antrean
+              </span>
+            </div>
+            <p className="text-sm text-[var(--soft)] mt-0.5">
+              Intervensi manusia atas anomali biometrik &amp; geofence (UU PDP No. 27/2022 Pasal 34).
+            </p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1 sm:flex-none sm:w-56">
-            <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+        <div className="flex items-center gap-2.5 w-full lg:w-auto">
+          <div className="relative flex-1 lg:w-64">
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--soft)]" />
             <input
               type="text"
-              placeholder="Cari NIM / Nama..."
+              placeholder="Cari NIM atau Nama..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full text-xs bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-teal-600 transition"
+              className="hlb-input w-full text-sm pl-10 pr-3.5 py-2"
             />
           </div>
           <button
@@ -117,98 +127,172 @@ export const OversightPage: React.FC<OversightPageProps> = ({
             disabled={isLoading}
             aria-label="Segarkan data"
             title="Segarkan data"
-            className="flex items-center justify-center text-slate-600 hover:text-slate-800 bg-white hover:bg-slate-50 p-2 rounded-xl border border-slate-200 transition cursor-pointer disabled:opacity-60"
+            className="hlb-btn-secondary h-10 w-10 flex items-center justify-center shrink-0 cursor-pointer disabled:opacity-50"
           >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-teal-600' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>
 
       {notification && (
         <div
-          className={`flex items-center justify-between p-3.5 rounded-2xl border text-xs ${
-            notification.type === 'success'
-              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-              : 'bg-rose-50 border-rose-200 text-rose-800'
-          }`}
+          className={`hlb-alert ${
+            notification.type === 'success' ? 'success' : 'danger'
+          } flex items-center justify-between gap-3 p-4 text-sm font-medium text-[var(--ink)]`}
         >
           <span>{notification.message}</span>
           <button
             onClick={() => setNotification(null)}
-            className="text-slate-400 hover:text-slate-700 text-xs font-semibold px-2 py-0.5 cursor-pointer"
+            className="hlb-btn-secondary text-[11px] font-mono uppercase tracking-wider px-2.5 py-1 cursor-pointer shrink-0"
           >
             Tutup
           </button>
         </div>
       )}
 
-      {/* Pending Table */}
-      <div className="bg-white rounded-3xl border border-slate-100 p-4 sm:p-5 shadow-[0_10px_30px_rgba(0,0,0,0.04)]">
+      {/* Pending Queue Panel */}
+      <div className="hlb-panel overflow-hidden">
         {isLoading ? (
-          <div className="py-12 flex flex-col items-center justify-center text-slate-400 space-y-2">
-            <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
-            <span className="text-xs">Memuat antrean verifikasi...</span>
+          <div className="py-14 flex flex-col items-center justify-center text-[var(--soft)] gap-2.5">
+            <RefreshCw className="w-6 h-6 animate-spin text-[var(--soft)]" />
+            <span className="font-mono text-xs uppercase tracking-wider">
+              Memuat antrean verifikasi...
+            </span>
           </div>
         ) : filteredPending.length === 0 ? (
-          <div className="py-12 text-center bg-slate-50/60 rounded-2xl border border-slate-100 space-y-2">
-            <CheckCircle className="w-10 h-10 text-emerald-500 mx-auto" />
-            <p className="text-sm font-bold text-slate-700">Tidak Ada Antrean Verifikasi</p>
-            <p className="text-xs text-slate-400 max-w-md mx-auto">
-              Semua presensi telah diproses atau tidak ada anomali sensor yang memerlukan intervensi manual.
+          <div className="py-14 px-6 text-center space-y-2">
+            <div className="w-12 h-12 rounded-full bg-[var(--mint)] border-2 border-[var(--edge)] shadow-[3px_3px_0_var(--shadow)] flex items-center justify-center mx-auto">
+              <CheckCircle className="w-6 h-6 text-[var(--green)]" />
+            </div>
+            <p className="font-display font-normal text-2xl text-[var(--ink)]">
+              Tidak Ada Antrean Verifikasi
+            </p>
+            <p className="text-sm text-[var(--soft)] max-w-md mx-auto">
+              Semua presensi telah tervalidasi atau tidak ada anomali yang membutuhkan intervensi dosen.
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-600">
-              <thead className="bg-slate-50 text-slate-500 uppercase text-[10px] font-bold border-b border-slate-100">
-                <tr>
-                  <th className="px-4 py-3">Mahasiswa</th>
-                  <th className="px-3 py-3 text-center">Skor</th>
-                  <th className="px-3 py-3 text-center">Jarak</th>
-                  <th className="px-3 py-3 text-center">Telat</th>
-                  <th className="px-4 py-3 text-right">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-sans">
-                {filteredPending.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50/80 transition">
-                    <td className="px-4 py-3.5">
-                      <div className="font-bold text-slate-800 text-xs">{item.name || 'Mahasiswa'}</div>
-                      <div className="text-slate-400 text-[11px]">NIM: {item.nim}</div>
-                      {item.simulated_case && (
-                        <span className="inline-block mt-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200/70">
-                          Kasus {item.simulated_case}
-                        </span>
-                      )}
-                    </td>
+          <>
+            {/* Desktop Table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="hlb-table w-full text-left text-sm">
+                <thead>
+                  <tr>
+                    <th className="px-5 py-3.5">Mahasiswa</th>
+                    <th className="px-3 py-3.5 text-center">Skor Wajah</th>
+                    <th className="px-3 py-3.5 text-center">Jarak GPS</th>
+                    <th className="px-3 py-3.5 text-center">Telat</th>
+                    <th className="px-3 py-3.5 text-center">Status</th>
+                    <th className="px-5 py-3.5 text-right">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredPending.map((item) => (
+                    <tr key={item.id} className="bg-[var(--paper)]/50">
+                      <td className="px-5 py-3.5">
+                        <div className="font-semibold text-[var(--ink)]">
+                          {item.name || 'Mahasiswa'}
+                        </div>
+                        <div className="text-[var(--soft)] font-mono text-xs flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          <span>NIM {item.nim}</span>
+                          {item.simulated_case && (
+                            <span className="hlb-tag accent">Kasus {item.simulated_case}</span>
+                          )}
+                        </div>
+                      </td>
 
-                    <td className="px-3 py-3.5 text-center">
-                      <span className="font-bold text-teal-700 font-mono">
+                      <td className="px-3 py-3.5 text-center font-mono font-semibold text-[var(--ink)] tabular-nums">
+                        {(item.similarity_score * 100).toFixed(0)}%
+                      </td>
+
+                      <td className="px-3 py-3.5 text-center font-mono text-[var(--soft)] tabular-nums">
+                        {formatDistance(item.distance_meters)}
+                      </td>
+
+                      <td className="px-3 py-3.5 text-center font-mono text-[var(--soft)] tabular-nums">
+                        {item.late_minutes}m
+                      </td>
+
+                      <td className="px-3 py-3.5 text-center">
+                        <span className="hlb-tag paper">Pending Review</span>
+                      </td>
+
+                      <td className="px-5 py-3.5 text-right">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedAttendance(item)}
+                          className="hlb-btn-primary text-xs font-mono uppercase tracking-wider px-4 py-2 cursor-pointer"
+                        >
+                          Periksa
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Cards */}
+            <div className="md:hidden p-4 space-y-3">
+              {filteredPending.map((item) => (
+                <div
+                  key={item.id}
+                  className="hlb-tile bg-[var(--paper)] p-4 space-y-3"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="font-semibold text-[var(--ink)] text-base">
+                        {item.name || 'Mahasiswa'}
+                      </div>
+                      <div className="font-mono text-xs text-[var(--soft)]">
+                        NIM {item.nim}
+                      </div>
+                    </div>
+                    {item.simulated_case ? (
+                      <span className="hlb-tag accent">Kasus {item.simulated_case}</span>
+                    ) : (
+                      <span className="hlb-tag paper">Pending</span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="bg-[var(--surface)] border-2 border-[var(--edge)] rounded-lg p-2">
+                      <span className="block font-mono text-[10px] uppercase text-[var(--soft)]">
+                        Wajah
+                      </span>
+                      <span className="font-mono font-semibold text-xs text-[var(--ink)] tabular-nums">
                         {(item.similarity_score * 100).toFixed(0)}%
                       </span>
-                    </td>
+                    </div>
+                    <div className="bg-[var(--surface)] border-2 border-[var(--edge)] rounded-lg p-2">
+                      <span className="block font-mono text-[10px] uppercase text-[var(--soft)]">
+                        GPS
+                      </span>
+                      <span className="font-mono font-semibold text-xs text-[var(--ink)] tabular-nums">
+                        {formatDistance(item.distance_meters)}
+                      </span>
+                    </div>
+                    <div className="bg-[var(--surface)] border-2 border-[var(--edge)] rounded-lg p-2">
+                      <span className="block font-mono text-[10px] uppercase text-[var(--soft)]">
+                        Telat
+                      </span>
+                      <span className="font-mono font-semibold text-xs text-[var(--ink)] tabular-nums">
+                        {item.late_minutes}m
+                      </span>
+                    </div>
+                  </div>
 
-                    <td className="px-3 py-3.5 text-center font-medium text-slate-700">
-                      {item.distance_meters.toFixed(0)}m
-                    </td>
-
-                    <td className="px-3 py-3.5 text-center font-medium text-slate-700">
-                      {item.late_minutes}m
-                    </td>
-
-                    <td className="px-4 py-3.5 text-right">
-                      <button
-                        onClick={() => setSelectedAttendance(item)}
-                        className="text-xs font-bold bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white px-3.5 py-1.5 rounded-xl shadow-xs transition cursor-pointer"
-                      >
-                        Periksa
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedAttendance(item)}
+                    className="hlb-btn-primary w-full text-xs font-mono uppercase tracking-wider py-2.5 cursor-pointer"
+                  >
+                    Periksa &amp; Verifikasi
+                  </button>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
 

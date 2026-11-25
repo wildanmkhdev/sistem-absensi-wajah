@@ -102,6 +102,7 @@ export interface PresensiRequest {
   longitude: number;
   gps_accuracy: number;
   captured_at?: string;
+  simulated_late_minutes?: number;
 }
 
 export interface PresensiResponse {

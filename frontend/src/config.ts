@@ -6,12 +6,12 @@ export const API_BASE_URL =
     ? ''
     : 'http://localhost:7860');
 
-// Koordinat default untuk form pembuatan sesi baru dosen
-// CATATAN: Geofence sesungguhnya ditentukan per sesi perkuliahan di database.
+// Koordinat default untuk form pembuatan sesi baru dosen & referensi geofence kelas
+// Target: Universitas Islam Negeri Sumatera Utara (UINSU) Kampus IV Tuntungan Medan
 export const DEFAULT_CLASSROOM = {
-  name: 'Ruang Kuliah Lab AI (Gedung B Lt. 3)',
-  latitude: -6.200000,
-  longitude: 106.816666,
+  name: 'UINSU Kampus IV Tuntungan Medan (Lab AI & Komputer)',
+  latitude: 3.493832,
+  longitude: 98.587816,
   maxDistanceMeters: 50,
 };
 
