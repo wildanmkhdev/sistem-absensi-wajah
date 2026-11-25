@@ -614,7 +614,7 @@ def register_student(
         user_nim = user.get("nim")
         if not user_nim:
             user_nim = req.nim.strip()
-            update_user_nim(user["username"], user_nim, user.get("name"))
+            update_user_nim(user["sub"], user_nim, user.get("name"))
         elif req.nim and req.nim.strip() != user_nim:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -910,7 +910,7 @@ def preview_camera_quality(req: FacePreviewRequest):
     without querying or exposing any student records.
     """
     try:
-        analysis = analyze_live_frame(req.face_image)
+        analysis = analyze_live_frame(req.face_image, compute_embedding=False)
     except FaceEngineUnavailable as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -948,7 +948,7 @@ def preview_face_realtime(
     """
     nim = user.get("nim") or ""
     try:
-        analysis = analyze_live_frame(req.face_image)
+        analysis = analyze_live_frame(req.face_image, compute_embedding=True)
     except FaceEngineUnavailable as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -960,7 +960,15 @@ def preview_face_realtime(
             detail=str(exc),
         ) from exc
 
-    stored_embedding = get_student_embedding(nim) if nim else None
+    student_rec = get_student(nim) if nim else None
+    is_outdated = (
+        student_rec is not None
+        and student_rec.get("model_version")
+        and student_rec.get("model_version") != MODEL_VERSION
+    )
+    stored_embedding = (
+        None if is_outdated else (get_student_embedding(nim) if nim else None)
+    )
     embedding = analysis.get("embedding")
     similarity = 0.0
     if embedding is not None and stored_embedding is not None:
@@ -968,7 +976,10 @@ def preview_face_realtime(
 
     similarity_percent = round(float(similarity) * 100.0, 1)
 
-    if stored_embedding is None:
+    if is_outdated:
+        match_status = "NOT_ENROLLED"
+        matched_name = "Perlu Daftar Ulang Wajah"
+    elif stored_embedding is None:
         match_status = "NOT_ENROLLED"
         matched_name = "Wajah Belum Terdaftar"
     elif not analysis["detected"]:

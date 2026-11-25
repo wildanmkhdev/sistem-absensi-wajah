@@ -27,6 +27,7 @@ import base64
 import io
 import logging
 import os
+import threading
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -96,6 +97,7 @@ class InvalidImage(FaceEngineError):
 # ==============================================================================
 _SESSIONS: Optional[Tuple[Any, Any]] = None
 _SESSION_ERROR: Optional[str] = None
+_SESSION_LOCK = threading.Lock()
 
 
 def _create_session(path: str):
@@ -117,21 +119,24 @@ def get_sessions():
     global _SESSIONS, _SESSION_ERROR
     if _SESSIONS is not None:
         return _SESSIONS
-    try:
-        detector = _create_session(DETECTOR_PATH)
-        recognizer = _create_session(RECOGNIZER_PATH)
-        _SESSIONS = (detector, recognizer)
-        _SESSION_ERROR = None
-        logger.info(
-            "Face engine loaded: %s (detector=%s, recognizer=%s)",
-            MODEL_NAME,
-            os.path.basename(DETECTOR_PATH),
-            os.path.basename(RECOGNIZER_PATH),
-        )
-        return _SESSIONS
-    except Exception as exc:  # noqa: BLE001 - surfaced through API
-        _SESSION_ERROR = str(exc)
-        raise FaceEngineUnavailable(str(exc)) from exc
+    with _SESSION_LOCK:
+        if _SESSIONS is not None:
+            return _SESSIONS
+        try:
+            detector = _create_session(DETECTOR_PATH)
+            recognizer = _create_session(RECOGNIZER_PATH)
+            _SESSIONS = (detector, recognizer)
+            _SESSION_ERROR = None
+            logger.info(
+                "Face engine loaded: %s (detector=%s, recognizer=%s)",
+                MODEL_NAME,
+                os.path.basename(DETECTOR_PATH),
+                os.path.basename(RECOGNIZER_PATH),
+            )
+            return _SESSIONS
+        except Exception as exc:  # noqa: BLE001 - surfaced through API
+            _SESSION_ERROR = str(exc)
+            raise FaceEngineUnavailable(str(exc)) from exc
 
 
 def is_available() -> bool:
@@ -402,7 +407,10 @@ def _umeyama(src: np.ndarray, dst: np.ndarray) -> np.ndarray:
 def _warp_bilinear(arr: np.ndarray, matrix: np.ndarray, size: int) -> np.ndarray:
     """Warp an HxWx3 array into size x size using a 2x3 affine matrix."""
     h, w = arr.shape[:2]
-    inverse = np.linalg.inv(np.vstack([matrix, [0, 0, 1]]))[:2]
+    try:
+        inverse = np.linalg.inv(np.vstack([matrix, [0, 0, 1]]))[:2]
+    except np.linalg.LinAlgError as exc:
+        raise FaceNotFound("Landmark wajah tidak valid untuk alignment.") from exc
 
     xs, ys = np.meshgrid(np.arange(size), np.arange(size))
     ones = np.ones_like(xs)
@@ -503,6 +511,7 @@ def process_face_image(
 
 def analyze_live_frame(
     image_input: Union[bytes, bytearray, str, Image.Image, np.ndarray],
+    compute_embedding: bool = True,
 ) -> Dict[str, Any]:
     """
     Lightweight real-time camera frame analyzer for the live viewfinder HUD.
@@ -580,13 +589,14 @@ def analyze_live_frame(
     )
     quality["face_brightness"] = round(face_brightness, 1)
 
-    # Extract embedding for live similarity feedback
+    # Extract embedding only when needed (skipped on registration quality preview)
     embedding: Optional[np.ndarray] = None
-    try:
-        aligned = align_face(img, face)
-        embedding = embed_aligned(aligned)
-    except Exception:
-        embedding = None
+    if compute_embedding:
+        try:
+            aligned = align_face(img, face)
+            embedding = embed_aligned(aligned)
+        except Exception:
+            embedding = None
 
     # Prioritized real-world camera guidance
     if face_count > 1:

@@ -906,12 +906,17 @@ def get_student_embedding(nim: str) -> Optional[List[float]]:
 
 def get_all_students() -> List[Dict[str, Any]]:
     if _USE_NEON:
+        has_emb_expr = (
+            "(embedding IS NOT NULL OR face_embedding IS NOT NULL)"
+            if _HAS_PGVECTOR
+            else "(embedding IS NOT NULL)"
+        )
         with _neon_conn() as conn:
             cur = conn.cursor()
             cur.execute(
-                """
+                f"""
                 SELECT nim, name, profile_image_path,
-                       (embedding IS NOT NULL OR face_embedding IS NOT NULL) AS has_embedding,
+                       {has_emb_expr} AS has_embedding,
                        model_version, enrollment_count, consent_at, created_at::TEXT
                 FROM students ORDER BY nim ASC
                 """
@@ -1005,7 +1010,7 @@ def find_best_matches(
         literal = _to_vector_literal(embedding)
         query = (
             "SELECT nim, name, model_version, "
-            "1 - (face_embedding <=> %s::vector) AS similarity "
+            "GREATEST(0.0, LEAST(1.0, 1 - (face_embedding <=> %s::vector))) AS similarity "
             "FROM students WHERE face_embedding IS NOT NULL"
         )
         params: List[Any] = [literal]
