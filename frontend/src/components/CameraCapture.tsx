@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { AlertCircle, CheckCircle2, Lightbulb, SwitchCamera, AlertTriangle } from 'lucide-react';
-import { previewFace, type FacePreviewResponse } from '../api';
+import { previewCameraQuality, previewFace, type FacePreviewResponse } from '../api';
 import { IconCameraView, IconFaceScan } from './icons/FlaticonIcons';
 
 interface CameraCaptureProps {
@@ -10,6 +10,8 @@ interface CameraCaptureProps {
   disabled?: boolean;
   /** Enable live face tracking bbox, similarity %, and lighting/framing coaching */
   enableRealtimePreview?: boolean;
+  /** 'presensi' compares against enrolled DB template; 'register' checks framing & lighting quality */
+  previewMode?: 'presensi' | 'register';
 }
 
 export const CameraCapture: React.FC<CameraCaptureProps> = ({
@@ -18,6 +20,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
   onClearCapture,
   disabled = false,
   enableRealtimePreview = false,
+  previewMode = 'presensi',
 }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -157,7 +160,10 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
         const frameBase64 = canvas.toDataURL('image/jpeg', 0.72);
-        const res = await previewFace(frameBase64);
+        const res =
+          previewMode === 'register'
+            ? await previewCameraQuality(frameBase64)
+            : await previewFace(frameBase64);
         if (!cancelled) {
           setLivePreview(res);
         }
@@ -176,7 +182,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
       clearTimeout(initialTimer);
       clearInterval(interval);
     };
-  }, [enableRealtimePreview, cameraActive, capturedImage, disabled, facingMode]);
+  }, [enableRealtimePreview, previewMode, cameraActive, capturedImage, disabled, facingMode]);
 
   const toggleFacingMode = () => {
     setFacingMode((prev) => (prev === 'user' ? 'environment' : 'user'));
@@ -300,7 +306,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
                   <span className="max-w-[130px] truncate">
                     {livePreview.matched_name || 'Subjek'}
                   </span>
-                  {livePreview.match_status !== 'NOT_ENROLLED' && (
+                  {previewMode === 'presensi' && livePreview.match_status !== 'NOT_ENROLLED' && (
                     <>
                       <span className="opacity-50">·</span>
                       <span>{livePreview.similarity_percent.toFixed(0)}%</span>
@@ -394,11 +400,13 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
                     ? livePreview.guidance.title
                     : 'Memindai kondisi pencahayaan & posisi wajah...'}
                 </span>
-                {livePreview?.detected && livePreview.match_status !== 'NOT_ENROLLED' && (
-                  <span className="font-mono text-[10.5px] font-semibold text-[var(--ink)] tabular-nums">
-                    Kecocokan: {livePreview.similarity_percent.toFixed(1)}%
-                  </span>
-                )}
+                {previewMode === 'presensi' &&
+                  livePreview?.detected &&
+                  livePreview.match_status !== 'NOT_ENROLLED' && (
+                    <span className="font-mono text-[10.5px] font-semibold text-[var(--ink)] tabular-nums">
+                      Kecocokan: {livePreview.similarity_percent.toFixed(1)}%
+                    </span>
+                  )}
               </div>
               <p className="font-sans text-[11.5px] text-[var(--soft)] leading-snug mt-0.5">
                 {livePreview

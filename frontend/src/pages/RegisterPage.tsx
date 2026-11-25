@@ -282,6 +282,8 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
               capturedImage={capturedImage}
               onClearCapture={() => setCapturedImage(null)}
               disabled={isSubmitting}
+              enableRealtimePreview
+              previewMode="register"
             />
           </div>
 

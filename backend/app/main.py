@@ -902,6 +902,41 @@ class FacePreviewRequest(BaseModel):
     face_image: str
 
 
+@app.post("/api/camera/preview-quality")
+def preview_camera_quality(req: FacePreviewRequest):
+    """
+    Public read-only camera quality & framing analyzer for registration screens.
+    Returns face bounding box and real-time lighting/sharpness/position guidance
+    without querying or exposing any student records.
+    """
+    try:
+        analysis = analyze_live_frame(req.face_image)
+    except FaceEngineUnavailable as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+    except InvalidImage as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    guidance = analysis["guidance"]
+    is_ready = analysis["detected"] and guidance["level"] == "ok"
+
+    return {
+        "detected": analysis["detected"],
+        "face_count": analysis["face_count"],
+        "bbox": analysis["bbox"],
+        "matched_name": "Siap Didaftarkan" if is_ready else ("Sesuaikan Posisi" if analysis["detected"] else None),
+        "similarity_percent": 0.0,
+        "match_status": "MATCH" if is_ready else ("BORDERLINE" if analysis["detected"] else "NO_FACE"),
+        "quality": analysis["quality"],
+        "guidance": guidance,
+    }
+
+
 @app.post("/api/presensi/preview-face")
 def preview_face_realtime(
     req: FacePreviewRequest, user: Dict[str, Any] = Depends(require_mahasiswa)

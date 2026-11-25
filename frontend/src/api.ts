@@ -211,6 +211,14 @@ export async function previewFace(faceImageBase64: string): Promise<FacePreviewR
   });
 }
 
+export async function previewCameraQuality(faceImageBase64: string): Promise<FacePreviewResponse> {
+  return request<FacePreviewResponse>('/api/camera/preview-quality', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ face_image: faceImageBase64 }),
+  });
+}
+
 export async function submitPresensi(req: PresensiRequest): Promise<PresensiResponse> {
   return request<PresensiResponse>('/api/presensi', {
     method: 'POST',

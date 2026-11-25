@@ -345,6 +345,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, initialMode = 'lo
                   capturedImage={regFaceImage}
                   onClearCapture={() => setRegFaceImage(null)}
                   disabled={isSubmitting}
+                  enableRealtimePreview
+                  previewMode="register"
                 />
               </div>
 
