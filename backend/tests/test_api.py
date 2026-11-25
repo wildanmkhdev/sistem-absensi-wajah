@@ -131,7 +131,47 @@ def test_presensi_impostor_rejected(client, student_headers, enrolled_student, a
     assert res.status_code == 200
     data = res.json()
     assert data["status"] == AttendanceStatus.TIDAK_SAH.value
-    assert data["similarity_score"] < 0.15
+    assert data["similarity_score"] < 0.35
+
+
+def test_presensi_impostor_after_genuine_hadir_is_not_masked(
+    client, student_headers, enrolled_student, active_session
+):
+    # 1. Genuine student attends -> HADIR
+    genuine = client.post(
+        "/api/presensi",
+        json={
+            "session_id": active_session["id"],
+            "face_image": data_uri(FIXTURES / "obama_b.jpg"),
+            "latitude": -6.200000,
+            "longitude": 106.816666,
+            "gps_accuracy": 8.0,
+        },
+        headers=student_headers,
+    )
+    assert genuine.status_code == 200
+    assert genuine.json()["status"] in (
+        AttendanceStatus.HADIR.value,
+        AttendanceStatus.TERLAMBAT.value,
+    )
+
+    # 2. Impostor submits on the same account & session -> MUST return TIDAK_SAH, not old HADIR
+    impostor = client.post(
+        "/api/presensi",
+        json={
+            "session_id": active_session["id"],
+            "face_image": data_uri(FIXTURES / "biden.jpg"),
+            "latitude": -6.200000,
+            "longitude": 106.816666,
+            "gps_accuracy": 8.0,
+        },
+        headers=student_headers,
+    )
+    assert impostor.status_code == 200
+    imp_data = impostor.json()
+    assert imp_data["status"] == AttendanceStatus.TIDAK_SAH.value
+    assert imp_data["duplicate"] is False
+    assert imp_data["similarity_score"] < 0.35
 
 
 def test_simulate_dry_run_does_not_persist(client, lecturer_headers):

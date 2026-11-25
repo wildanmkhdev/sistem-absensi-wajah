@@ -65,6 +65,7 @@ from app.db.database import (  # noqa: E402
     get_active_sessions,
     get_all_attendances,
     get_all_students,
+    get_attendance_by_nim_session,
     get_attendance_stats,
     get_pending_oversight,
     get_session,
@@ -808,24 +809,19 @@ def submit_presensi(
             and float(best["similarity"]) - similarity >= IDENTITY_MISMATCH_MARGIN
         ):
             identity_check["is_identity_mismatch"] = True
-            if evaluation["status"] in (
-                AttendanceStatus.HADIR.value,
-                AttendanceStatus.TERLAMBAT.value,
-            ):
-                evaluation.update(
-                    {
-                        "status": AttendanceStatus.PERLU_VERIFIKASI_DOSEN.value,
-                        "status_uupdp": AttendanceStatus.PERLU_VERIFIKASI_DOSEN.value,
-                        "requires_human_oversight": True,
-                        "human_oversight_status": "PENDING",
-                        "decision_reason": (
-                            "Wajah lebih mirip dengan mahasiswa lain "
-                            f"({best['nim']}, skor {best['similarity']:.2f}) daripada "
-                            f"pemilik akun ({similarity:.2f}). Indikasi presensi "
-                            "proxy; menunggu verifikasi dosen."
-                        ),
-                    }
-                )
+            evaluation.update(
+                {
+                    "status": AttendanceStatus.TIDAK_SAH.value,
+                    "status_uupdp": AttendanceStatus.TIDAK_SAH.value,
+                    "requires_human_oversight": False,
+                    "human_oversight_status": "NONE",
+                    "decision_reason": (
+                        "Presensi ditolak (indikasi titip absen): wajah lebih cocok dengan "
+                        f"mahasiswa lain ({best['nim']}, skor {best['similarity']:.2f}) "
+                        f"daripada pemilik akun ({similarity:.2f})."
+                    ),
+                }
+            )
 
     record = {
         "nim": nim,
@@ -850,8 +846,18 @@ def submit_presensi(
         "photo_path": None,
     }
 
-    saved = create_attendance(record)
-    duplicate = int(saved.get("id", 0)) > 0 and saved.get("timestamp") != record["timestamp"]
+    # Never mask a rejected/impostor attempt behind an earlier HADIR row for the same session.
+    if record["status"] == AttendanceStatus.TIDAK_SAH.value:
+        existing = get_attendance_by_nim_session(nim, int(session["id"]))
+        if existing is not None:
+            saved = record
+            duplicate = False
+        else:
+            saved = create_attendance(record)
+            duplicate = False
+    else:
+        saved = create_attendance(record)
+        duplicate = int(saved.get("id", 0)) > 0 and saved.get("timestamp") != record["timestamp"]
 
     return {
         "id": saved.get("id"),

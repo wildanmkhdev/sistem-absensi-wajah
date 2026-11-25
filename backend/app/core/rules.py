@@ -23,9 +23,14 @@ from typing import Any, Dict, List, Optional, Tuple
 # ==============================================================================
 # THRESHOLDS
 # ==============================================================================
-FACE_MATCH_THRESHOLD: float = float(os.getenv("FACE_MATCH_THRESHOLD", "0.45"))
-FACE_BORDERLINE_MIN: float = float(os.getenv("FACE_BORDERLINE_MIN", "0.30"))
-FACE_MIN_PLAUSIBLE: float = float(os.getenv("FACE_MIN_PLAUSIBLE", "0.15"))
+# Calibrated for ArcFace MobileFaceNet (w600k_mbf):
+#   >= 0.55 auto-match (reduces FAR on same-demographic campus pairs)
+#   0.40 - 0.55 borderline (glasses/lighting -> human oversight)
+#   0.35 - 0.40 low/stale profile (physical presence -> human oversight)
+#   <  0.35 clear identity mismatch -> immediate TIDAK_SAH
+FACE_MATCH_THRESHOLD: float = float(os.getenv("FACE_MATCH_THRESHOLD", "0.55"))
+FACE_BORDERLINE_MIN: float = float(os.getenv("FACE_BORDERLINE_MIN", "0.40"))
+FACE_MIN_PLAUSIBLE: float = float(os.getenv("FACE_MIN_PLAUSIBLE", "0.35"))
 
 MAX_VALID_DISTANCE: float = float(os.getenv("MAX_VALID_DISTANCE_METERS", "50"))
 MAX_OVERSIGHT_DISTANCE: float = float(os.getenv("MAX_OVERSIGHT_DISTANCE_METERS", "100"))
@@ -296,7 +301,7 @@ def evaluate_presensi(
 # 4. OFFICIAL BENCHMARK CASES (M1 - M6)
 # ==============================================================================
 # Scores are expressed on the ArcFace cosine scale:
-#   >= 0.45 match, 0.30-0.45 borderline, 0.15-0.30 stale/low, < 0.15 mismatch.
+#   >= 0.55 match, 0.40-0.55 borderline, 0.35-0.40 stale/low, < 0.35 mismatch.
 BENCHMARK_CASES: List[Dict[str, Any]] = [
     {
         "id": "M1",
@@ -311,19 +316,19 @@ BENCHMARK_CASES: List[Dict[str, Any]] = [
         "id": "M2",
         "name": "Budi Santoso",
         "nim": "210102",
-        "score": 0.45,
+        "score": 0.55,
         "distance": 50.0,
         "late": 15.0,
-        "keterangan": "Tepat di ambang batas skor (0.45), jarak (50m), dan waktu (15m).",
+        "keterangan": "Tepat di ambang batas skor (0.55), jarak (50m), dan waktu (15m).",
     },
     {
         "id": "M3",
         "name": "Citra Dewi",
         "nim": "210103",
-        "score": 0.36,
+        "score": 0.44,
         "distance": 15.0,
         "late": 3.0,
-        "keterangan": "Kacamata baru dan pencahayaan redup (skor 0.36 di bawah 0.45).",
+        "keterangan": "Kacamata baru dan pencahayaan redup (skor 0.44 di bawah 0.55).",
     },
     {
         "id": "M4",
@@ -338,7 +343,7 @@ BENCHMARK_CASES: List[Dict[str, Any]] = [
         "id": "M5",
         "name": "Eka Saputra",
         "nim": "210105",
-        "score": 0.20,
+        "score": 0.36,
         "distance": 10.0,
         "late": 2.0,
         "keterangan": "Foto profil lama (6 tahun), hadir fisik di kelas.",

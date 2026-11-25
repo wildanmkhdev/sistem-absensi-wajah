@@ -332,8 +332,16 @@ def detect_faces(
 
     detector, _ = get_sessions()
 
-    resized = img.resize((size, size), Image.Resampling.BILINEAR)
-    arr = np.asarray(resized, dtype=np.float32)[:, :, ::-1]  # RGB -> BGR
+    # Aspect-ratio-preserving letterbox resize (top-left anchored) and native RGB
+    # matching InsightFace SCRFD training preprocessing (prevents 4:3 / 9:16 face distortion).
+    scale = size / max(img.width, img.height)
+    new_w = max(1, int(round(img.width * scale)))
+    new_h = max(1, int(round(img.height * scale)))
+    resized = img.resize((new_w, new_h), Image.Resampling.BILINEAR)
+    canvas = Image.new("RGB", (size, size), (0, 0, 0))
+    canvas.paste(resized, (0, 0))
+
+    arr = np.asarray(canvas, dtype=np.float32)  # Native RGB
     blob = ((arr - 127.5) / 128.0).transpose(2, 0, 1)[None]
 
     input_name = detector.get_inputs()[0].name
@@ -341,16 +349,15 @@ def detect_faces(
 
     dets = _decode_scrfd(outputs, size, threshold)
 
-    # Scale boxes/landmarks back to the original image.
-    sx = img.width / size
-    sy = img.height / size
+    # Scale boxes/landmarks uniformly back to the original image coordinates.
+    inv_scale = 1.0 / scale
     for det in dets:
-        det.box[0] *= sx
-        det.box[2] *= sx
-        det.box[1] *= sy
-        det.box[3] *= sy
-        det.landmarks[:, 0] *= sx
-        det.landmarks[:, 1] *= sy
+        det.box[0] = float(np.clip(det.box[0] * inv_scale, 0.0, img.width))
+        det.box[2] = float(np.clip(det.box[2] * inv_scale, 0.0, img.width))
+        det.box[1] = float(np.clip(det.box[1] * inv_scale, 0.0, img.height))
+        det.box[3] = float(np.clip(det.box[3] * inv_scale, 0.0, img.height))
+        det.landmarks[:, 0] *= inv_scale
+        det.landmarks[:, 1] *= inv_scale
 
     dets = _nms(dets, NMS_IOU_THRESHOLD)
     dets = [

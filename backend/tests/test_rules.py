@@ -35,10 +35,16 @@ def test_low_score_is_rejected_by_rigid_design():
 
 
 def test_borderline_score_escalates_to_human():
-    status, _, oversight, basis = evaluate_rancangan_uupdp(0.36, 15.0, 3.0)
+    status, _, oversight, basis = evaluate_rancangan_uupdp(0.44, 15.0, 3.0)
     assert status == AttendanceStatus.PERLU_VERIFIKASI_DOSEN
     assert oversight is True
     assert "Pasal 10" in basis and "Pasal 34" in basis
+
+
+def test_impostor_score_below_plausible_is_rejected_immediately():
+    status, _, oversight, _ = evaluate_rancangan_uupdp(0.28, 10.0, 2.0)
+    assert status == AttendanceStatus.TIDAK_SAH
+    assert oversight is False
 
 
 def test_gps_drift_escalates_but_outside_perimeter_rejects():
