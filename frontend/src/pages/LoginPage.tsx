@@ -12,7 +12,7 @@ import {
 import { login, registerAccount } from '../api';
 import { CameraCapture } from '../components/CameraCapture';
 import type { Session } from '../auth';
-import { IconAcademicShield } from '../components/icons/FlaticonIcons';
+import { PresenSILogo } from '../components/icons/PresenSILogo';
 
 interface LoginPageProps {
   onLogin: (session: Session) => void;
@@ -139,8 +139,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, initialMode = 'lo
       <div className="w-full max-w-md mx-auto space-y-6">
         {/* Editorial Hero Header */}
         <div className="text-center space-y-3">
-          <div className="w-14 h-14 rounded-2xl bg-[var(--yellow)] text-[var(--on-yellow)] border-2 border-[var(--on-yellow)] shadow-[4px_4px_0_var(--shadow)] mx-auto flex items-center justify-center">
-            <IconAcademicShield className="w-8 h-8 text-[var(--on-yellow)]" />
+          <div className="mx-auto w-16 h-16 flex items-center justify-center">
+            <PresenSILogo className="w-16 h-16" label="Logo PresenSI" />
           </div>
 
           <div className="space-y-2">

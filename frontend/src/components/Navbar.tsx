@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { Role } from '../auth';
-import { IconFaceScan } from './icons/FlaticonIcons';
+import { PresenSILogo } from './icons/PresenSILogo';
 
 interface NavItem {
   id: string;
@@ -97,9 +97,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             onClick={() => setActiveTab(isDosen ? 'sessions' : 'presensi')}
             className="flex items-center gap-2.5 cursor-pointer group select-none text-left shrink-0"
           >
-            <div className="w-9 h-9 rounded-xl bg-[var(--yellow)] text-[var(--on-yellow)] border-2 border-[var(--on-yellow)] shadow-[2px_2px_0_var(--shadow)] flex items-center justify-center transition-transform group-hover:-translate-x-0.5 group-hover:-translate-y-0.5">
-              <IconFaceScan className="w-5 h-5 text-[var(--on-yellow)]" />
-            </div>
+            <PresenSILogo className="w-10 h-10 shrink-0 transition-transform group-hover:-translate-x-0.5 group-hover:-translate-y-0.5" />
             <div className="leading-none">
               <span className="font-display text-xl sm:text-2xl tracking-tight text-[var(--ink)] block leading-none">
                 PresenSI
