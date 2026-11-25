@@ -48,7 +48,9 @@ from app.core.geo import (  # noqa: E402
 )
 from app.core.rules import (  # noqa: E402
     BENCHMARK_CASES,
+    FACE_BORDERLINE_MIN,
     FACE_MATCH_THRESHOLD,
+    FACE_MIN_PLAUSIBLE,
     MAX_ONTIME_LATE_MINUTES,
     MAX_VALID_LATE_MINUTES,
     AttendanceStatus,
@@ -87,6 +89,7 @@ from app.ml.engine import (  # noqa: E402
     FaceEngineUnavailable,
     FaceNotFound,
     InvalidImage,
+    analyze_live_frame,
     compute_similarity,
     engine_info,
     extract_face_embedding,
@@ -892,6 +895,82 @@ def submit_presensi(
             "late_max_minutes": MAX_VALID_LATE_MINUTES,
             "radius_m": float(session.get("radius_m") or MAX_VALID_DISTANCE_METERS),
         },
+    }
+
+
+class FacePreviewRequest(BaseModel):
+    face_image: str
+
+
+@app.post("/api/presensi/preview-face")
+def preview_face_realtime(
+    req: FacePreviewRequest, user: Dict[str, Any] = Depends(require_mahasiswa)
+):
+    """
+    Read-only real-time camera preview endpoint for live viewfinder HUD.
+    Returns face bounding box, live match % against the logged-in student's
+    enrolled template, and real-time lighting/framing guidance.
+    """
+    nim = user.get("nim") or ""
+    try:
+        analysis = analyze_live_frame(req.face_image)
+    except FaceEngineUnavailable as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+    except InvalidImage as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    stored_embedding = get_student_embedding(nim) if nim else None
+    embedding = analysis.get("embedding")
+    similarity = 0.0
+    if embedding is not None and stored_embedding is not None:
+        similarity = compute_similarity(embedding, stored_embedding)
+
+    similarity_percent = round(float(similarity) * 100.0, 1)
+
+    if stored_embedding is None:
+        match_status = "NOT_ENROLLED"
+        matched_name = "Wajah Belum Terdaftar"
+    elif not analysis["detected"]:
+        match_status = "NO_FACE"
+        matched_name = None
+    elif similarity >= FACE_MATCH_THRESHOLD:
+        match_status = "MATCH"
+        matched_name = user.get("name") or nim
+    elif similarity >= FACE_MIN_PLAUSIBLE:
+        match_status = "BORDERLINE"
+        matched_name = user.get("name") or nim
+    else:
+        match_status = "MISMATCH"
+        matched_name = "Wajah Tidak Cocok"
+
+    guidance = analysis["guidance"]
+    if (
+        analysis["detected"]
+        and stored_embedding is not None
+        and match_status == "MISMATCH"
+        and guidance["level"] == "ok"
+    ):
+        guidance = {
+            "level": "error",
+            "title": "Wajah tidak cocok dengan akun",
+            "solution": "Pastikan pemilik akun yang menghadap kamera, atau perbarui foto di Data Wajah.",
+        }
+
+    return {
+        "detected": analysis["detected"],
+        "face_count": analysis["face_count"],
+        "bbox": analysis["bbox"],
+        "matched_name": matched_name,
+        "similarity_percent": similarity_percent,
+        "match_status": match_status,
+        "quality": analysis["quality"],
+        "guidance": guidance,
     }
 
 

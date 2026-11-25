@@ -192,6 +192,25 @@ export async function resolveOversight(
   return { success: true, attendance: json.attendance };
 }
 
+export interface FacePreviewResponse {
+  detected: boolean;
+  face_count: number;
+  bbox: { x: number; y: number; w: number; h: number } | null;
+  matched_name: string | null;
+  similarity_percent: number;
+  match_status: 'MATCH' | 'BORDERLINE' | 'MISMATCH' | 'NOT_ENROLLED' | 'NO_FACE';
+  quality: { brightness: number; sharpness: number; face_brightness?: number };
+  guidance: { level: 'ok' | 'warn' | 'error'; title: string; solution: string };
+}
+
+export async function previewFace(faceImageBase64: string): Promise<FacePreviewResponse> {
+  return request<FacePreviewResponse>('/api/presensi/preview-face', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ face_image: faceImageBase64 }),
+  });
+}
+
 export async function submitPresensi(req: PresensiRequest): Promise<PresensiResponse> {
   return request<PresensiResponse>('/api/presensi', {
     method: 'POST',

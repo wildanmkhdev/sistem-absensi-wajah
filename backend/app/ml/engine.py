@@ -501,6 +501,158 @@ def process_face_image(
     return embedding
 
 
+def analyze_live_frame(
+    image_input: Union[bytes, bytearray, str, Image.Image, np.ndarray],
+) -> Dict[str, Any]:
+    """
+    Lightweight real-time camera frame analyzer for the live viewfinder HUD.
+
+    Computes frame brightness/sharpness, runs SCRFD face detection, returns
+    normalized bounding-box coordinates [0..1], actionable user guidance, and
+    (when a single clear face is found) the 512-D ArcFace embedding.
+    """
+    img = load_image(image_input)
+    arr = np.asarray(img, dtype=np.float32)
+
+    # Luminance (Rec. 709) & Laplacian variance sharpness estimate (zero extra deps)
+    gray = 0.2126 * arr[:, :, 0] + 0.7152 * arr[:, :, 1] + 0.0722 * arr[:, :, 2]
+    brightness = float(np.mean(gray))
+    lap = (
+        gray[:-2, 1:-1]
+        + gray[2:, 1:-1]
+        + gray[1:-1, :-2]
+        + gray[1:-1, 2:]
+        - 4.0 * gray[1:-1, 1:-1]
+    )
+    sharpness = float(np.var(lap))
+
+    faces = detect_faces(img)
+    face_count = len(faces)
+    quality = {
+        "brightness": round(brightness, 1),
+        "sharpness": round(sharpness, 1),
+    }
+
+    if face_count == 0:
+        if brightness < 58:
+            guidance = {
+                "level": "error",
+                "title": "Pencahayaan terlalu gelap",
+                "solution": "Cari tempat yang lebih terang atau hadapkan wajah ke sumber cahaya.",
+            }
+        elif brightness > 220:
+            guidance = {
+                "level": "warn",
+                "title": "Cahaya terlalu silau / backlight",
+                "solution": "Hindari membelakangi lampu atau jendela yang terang.",
+            }
+        else:
+            guidance = {
+                "level": "warn",
+                "title": "Wajah belum terdeteksi",
+                "solution": "Arahkan wajah menghadap lurus ke tengah bingkai kamera.",
+            }
+        return {
+            "detected": False,
+            "face_count": 0,
+            "bbox": None,
+            "embedding": None,
+            "quality": quality,
+            "guidance": guidance,
+        }
+
+    face = max(faces, key=lambda f: f.area)
+    x1, y1, x2, y2 = [float(v) for v in face.box]
+    w_norm = max(0.0, min(1.0, (x2 - x1) / max(1, img.width)))
+    h_norm = max(0.0, min(1.0, (y2 - y1) / max(1, img.height)))
+    x_norm = max(0.0, min(1.0, x1 / max(1, img.width)))
+    y_norm = max(0.0, min(1.0, y1 / max(1, img.height)))
+    cx = x_norm + w_norm / 2.0
+    cy = y_norm + h_norm / 2.0
+
+    # Local face brightness for backlight / shadow detection
+    fx1, fy1 = max(0, int(x1)), max(0, int(y1))
+    fx2, fy2 = min(img.width, int(x2)), min(img.height, int(y2))
+    face_brightness = (
+        float(np.mean(gray[fy1:fy2, fx1:fx2]))
+        if fx2 > fx1 and fy2 > fy1
+        else brightness
+    )
+    quality["face_brightness"] = round(face_brightness, 1)
+
+    # Extract embedding for live similarity feedback
+    embedding: Optional[np.ndarray] = None
+    try:
+        aligned = align_face(img, face)
+        embedding = embed_aligned(aligned)
+    except Exception:
+        embedding = None
+
+    # Prioritized real-world camera guidance
+    if face_count > 1:
+        guidance = {
+            "level": "warn",
+            "title": f"Terdeteksi {face_count} wajah sekaligus",
+            "solution": "Pastikan hanya wajah Anda sendiri yang berada di dalam bingkai.",
+        }
+    elif face_brightness < 58:
+        guidance = {
+            "level": "warn",
+            "title": "Wajah terlalu gelap",
+            "solution": "Cari tempat lebih terang atau nyalakan lampu di depan wajah.",
+        }
+    elif face_brightness > 225 or (brightness - face_brightness > 65):
+        guidance = {
+            "level": "warn",
+            "title": "Cahaya terlalu silau / backlight",
+            "solution": "Hindari cahaya kuat dari belakang agar kontur wajah jelas.",
+        }
+    elif sharpness < 32:
+        guidance = {
+            "level": "warn",
+            "title": "Gambar agak buram / goyang",
+            "solution": "Tahan posisi kamera dengan stabil dan bersihkan lensa.",
+        }
+    elif w_norm < 0.16:
+        guidance = {
+            "level": "warn",
+            "title": "Wajah terlalu jauh",
+            "solution": "Dekatkan kamera sekitar 30–50 cm dari wajah Anda.",
+        }
+    elif w_norm > 0.74 or h_norm > 0.86:
+        guidance = {
+            "level": "warn",
+            "title": "Wajah terlalu dekat",
+            "solution": "Mundurkan kamera sedikit agar seluruh wajah masuk bingkai.",
+        }
+    elif abs(cx - 0.5) > 0.24 or abs(cy - 0.5) > 0.26:
+        guidance = {
+            "level": "warn",
+            "title": "Posisi wajah belum di tengah",
+            "solution": "Geser kamera agar wajah berada tepat di tengah bingkai.",
+        }
+    else:
+        guidance = {
+            "level": "ok",
+            "title": "Posisi & cahaya ideal",
+            "solution": "Tahan sejenak, wajah siap difoto untuk presensi.",
+        }
+
+    return {
+        "detected": True,
+        "face_count": face_count,
+        "bbox": {
+            "x": round(x_norm, 4),
+            "y": round(y_norm, 4),
+            "w": round(w_norm, 4),
+            "h": round(h_norm, 4),
+        },
+        "embedding": embedding,
+        "quality": quality,
+        "guidance": guidance,
+    }
+
+
 # ==============================================================================
 # SIMILARITY
 # ==============================================================================

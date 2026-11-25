@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Upload, AlertCircle, SwitchCamera } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Lightbulb, SwitchCamera, AlertTriangle } from 'lucide-react';
+import { previewFace, type FacePreviewResponse } from '../api';
 import { IconCameraView, IconFaceScan } from './icons/FlaticonIcons';
 
 interface CameraCaptureProps {
@@ -7,6 +8,8 @@ interface CameraCaptureProps {
   capturedImage: string | null;
   onClearCapture: () => void;
   disabled?: boolean;
+  /** Enable live face tracking bbox, similarity %, and lighting/framing coaching */
+  enableRealtimePreview?: boolean;
 }
 
 export const CameraCapture: React.FC<CameraCaptureProps> = ({
@@ -14,16 +17,18 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
   capturedImage,
   onClearCapture,
   disabled = false,
+  enableRealtimePreview = false,
 }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const previewBusyRef = useRef<boolean>(false);
 
   const [cameraActive, setCameraActive] = useState<boolean>(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState<boolean>(true);
   const [shutterFlash, setShutterFlash] = useState<boolean>(false);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
+  const [livePreview, setLivePreview] = useState<FacePreviewResponse | null>(null);
 
   const stopCamera = useCallback(() => {
     if (streamRef.current) {
@@ -34,6 +39,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
       videoRef.current.srcObject = null;
     }
     setCameraActive(false);
+    setLivePreview(null);
   }, []);
 
   const startCamera = useCallback(async () => {
@@ -47,7 +53,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
 
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Webcam tidak didukung oleh browser ini.');
+        throw new Error('Kamera tidak didukung oleh browser ini.');
       }
 
       let stream: MediaStream;
@@ -118,6 +124,60 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
     };
   }, [capturedImage, startCamera, stopCamera]);
 
+  // Real-time frame analysis loop (name, match %, bbox, lighting/framing guidance)
+  useEffect(() => {
+    if (!enableRealtimePreview || !cameraActive || capturedImage || disabled) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const runPreview = async () => {
+      const video = videoRef.current;
+      if (!video || video.readyState < 2 || !video.videoWidth || previewBusyRef.current) {
+        return;
+      }
+
+      previewBusyRef.current = true;
+      try {
+        const canvas = document.createElement('canvas');
+        const targetW = 320;
+        const targetH = Math.max(180, Math.round((video.videoHeight / video.videoWidth) * targetW));
+        canvas.width = targetW;
+        canvas.height = targetH;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        // Match what the user sees on screen (mirrored when using front camera)
+        if (facingMode === 'user') {
+          ctx.translate(canvas.width, 0);
+          ctx.scale(-1, 1);
+        }
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        const frameBase64 = canvas.toDataURL('image/jpeg', 0.72);
+        const res = await previewFace(frameBase64);
+        if (!cancelled) {
+          setLivePreview(res);
+        }
+      } catch {
+        // Silently ignore transient network drops during live preview polling
+      } finally {
+        previewBusyRef.current = false;
+      }
+    };
+
+    const initialTimer = setTimeout(() => void runPreview(), 450);
+    const interval = setInterval(() => void runPreview(), 1700);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(initialTimer);
+      clearInterval(interval);
+    };
+  }, [enableRealtimePreview, cameraActive, capturedImage, disabled, facingMode]);
+
   const toggleFacingMode = () => {
     setFacingMode((prev) => (prev === 'user' ? 'environment' : 'user'));
   };
@@ -146,18 +206,27 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
     onCapture(base64Data);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        onCapture(reader.result);
-      }
-    };
-    reader.readAsDataURL(file);
-  };
+  // Visual theme for live tracking box based on match status
+  const boxStyle =
+    livePreview?.match_status === 'MATCH'
+      ? {
+          border: 'border-[#86CFA2]',
+          pillBg: 'bg-[#86CFA2] text-[#16241C] border-[#16241C]',
+        }
+      : livePreview?.match_status === 'BORDERLINE'
+      ? {
+          border: 'border-[#FCE8B2]',
+          pillBg: 'bg-[#FCE8B2] text-[#1C2620] border-[#1C2620]',
+        }
+      : livePreview?.match_status === 'MISMATCH'
+      ? {
+          border: 'border-[#F26B63]',
+          pillBg: 'bg-[#F6C7C4] text-[#1C2620] border-[#1C2620]',
+        }
+      : {
+          border: 'border-[#FBF8F1]',
+          pillBg: 'bg-[#FBF8F1] text-[#1C2620] border-[#1C2620]',
+        };
 
   return (
     <div
@@ -165,13 +234,13 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
       className="hlb-panel overflow-hidden flex flex-col"
     >
       {/* Top Header */}
-      <div className="px-4 py-3.5 border-b-2 border-[var(--edge)] bg-[var(--surface)] flex items-center justify-between gap-2">
-        <div className="flex items-center space-x-2.5">
-          <div className="w-8 h-8 rounded-lg bg-[var(--paper)] border-2 border-[var(--edge)] flex items-center justify-center text-[var(--ink)] shrink-0">
+      <div className="px-4 py-3 border-b border-[var(--edge)] bg-[var(--surface)] flex items-center justify-between gap-2">
+        <div className="flex items-center space-x-2.5 min-w-0">
+          <div className="w-8 h-8 rounded-lg bg-[var(--paper)] border border-[var(--edge)] flex items-center justify-center text-[var(--ink)] shrink-0">
             <IconFaceScan className="w-4 h-4" />
           </div>
-          <h3 className="font-display font-normal text-lg sm:text-xl text-[var(--ink)] leading-none">
-            Verifikasi Wajah Swafoto
+          <h3 className="font-display font-normal text-lg sm:text-xl text-[var(--ink)] leading-none truncate">
+            Kamera Swafoto Langsung
           </h3>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
@@ -182,13 +251,12 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
           ) : (
             <span className="hlb-tag neutral">STANDBY</span>
           )}
-          <span className="hlb-tag paper hidden sm:inline-flex">ArcFace 512-D</span>
         </div>
       </div>
 
       {/* Camera Viewfinder Frame */}
-      <div className="p-3 sm:p-4 bg-[var(--bg)]">
-        <div className="relative w-full aspect-4/3 max-h-[340px] bg-[#161513] rounded-xl border-2 border-[var(--edge)] shadow-[4px_4px_0_var(--shadow)] overflow-hidden flex items-center justify-center">
+      <div className="p-3 sm:p-4 bg-[var(--bg)] space-y-2.5">
+        <div className="relative w-full aspect-4/3 max-h-[360px] bg-[#161513] rounded-xl border border-[var(--edge)] shadow-[3px_3px_0_var(--shadow)] overflow-hidden flex items-center justify-center">
           {shutterFlash && (
             <div className="absolute inset-0 bg-[var(--paper)] z-40 transition-opacity duration-150 opacity-90 pointer-events-none" />
           )}
@@ -204,29 +272,53 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
             }`}
           />
 
-          {/* Top-left Mono HUD Pill on Live Feed */}
+          {/* Top-left Camera Orientation Pill */}
           {!capturedImage && cameraActive && (
-            <div className="absolute top-3 left-3 z-20 pointer-events-none flex items-center gap-1.5">
-              <span className="font-mono text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-full bg-[var(--tip)] text-[var(--tip-ink)] border border-[var(--edge)]">
-                {facingMode === 'user' ? 'CAM: FRONT' : 'CAM: REAR'}
+            <div className="absolute top-2.5 left-2.5 z-20 pointer-events-none flex items-center gap-1.5">
+              <span className="font-mono text-[10px] font-semibold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-[#1C2620]/85 text-[#F4EFE3] border border-[#6E8075]">
+                {facingMode === 'user' ? 'KAMERA DEPAN' : 'KAMERA BELAKANG'}
               </span>
             </div>
           )}
 
-          {/* Crisp Face Guide Frame */}
-          {!capturedImage && cameraActive && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 p-4">
-              <div className="relative w-48 h-56 sm:w-56 sm:h-64 flex items-center justify-center">
-                <div className="absolute top-0 left-0 w-7 h-7 border-t-[3px] border-l-[3px] rounded-tl-xl border-[var(--yellow)]" />
-                <div className="absolute top-0 right-0 w-7 h-7 border-t-[3px] border-r-[3px] rounded-tr-xl border-[var(--yellow)]" />
-                <div className="absolute bottom-0 left-0 w-7 h-7 border-b-[3px] border-l-[3px] rounded-bl-xl border-[var(--yellow)]" />
-                <div className="absolute bottom-0 right-0 w-7 h-7 border-b-[3px] border-r-[3px] rounded-br-xl border-[var(--yellow)]" />
-
-                <div className="absolute bottom-2 inset-x-0 flex justify-center">
-                  <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-[var(--on-yellow)] bg-[var(--yellow)] border-2 border-[var(--on-yellow)] px-3 py-1 rounded-full shadow-[2px_2px_0_var(--shadow)]">
-                    Posisikan wajah di bingkai
+          {/* Real-Time Face Tracking Box + Name & Match % Label */}
+          {!capturedImage && cameraActive && enableRealtimePreview && livePreview?.detected && livePreview.bbox && (
+            <div
+              className={`absolute z-20 pointer-events-none rounded-xl border-2 transition-all duration-300 ease-out ${boxStyle.border}`}
+              style={{
+                left: `${Math.max(2, Math.min(94, livePreview.bbox.x * 100))}%`,
+                top: `${Math.max(2, Math.min(92, livePreview.bbox.y * 100))}%`,
+                width: `${Math.max(12, Math.min(96, livePreview.bbox.w * 100))}%`,
+                height: `${Math.max(14, Math.min(94, livePreview.bbox.h * 100))}%`,
+              }}
+            >
+              {/* Floating Identity + Score % Tag above the face box */}
+              <div className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap">
+                <span
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border font-mono text-[10.5px] font-semibold shadow-[2px_2px_0_rgba(0,0,0,0.45)] tabular-nums ${boxStyle.pillBg}`}
+                >
+                  <span className="max-w-[130px] truncate">
+                    {livePreview.matched_name || 'Subjek'}
                   </span>
-                </div>
+                  {livePreview.match_status !== 'NOT_ENROLLED' && (
+                    <>
+                      <span className="opacity-50">·</span>
+                      <span>{livePreview.similarity_percent.toFixed(0)}%</span>
+                    </>
+                  )}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Subtle Static Guide Corners (shown when no live bbox yet) */}
+          {!capturedImage && cameraActive && (!enableRealtimePreview || !livePreview?.detected) && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 p-4">
+              <div className="relative w-44 h-52 sm:w-52 sm:h-60 flex items-center justify-center">
+                <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 rounded-tl-xl border-[var(--yellow)]" />
+                <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 rounded-tr-xl border-[var(--yellow)]" />
+                <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 rounded-bl-xl border-[var(--yellow)]" />
+                <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 rounded-br-xl border-[var(--yellow)]" />
               </div>
             </div>
           )}
@@ -236,8 +328,8 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
             <div className="relative w-full h-full">
               <img src={capturedImage} alt="Hasil Swafoto" className="w-full h-full object-cover" />
 
-              <div className="absolute bottom-3 inset-x-3 bg-[var(--surface)] rounded-xl p-2.5 border-2 border-[var(--edge)] shadow-[3px_3px_0_var(--shadow)] flex items-center justify-between gap-2">
-                <span className="hlb-tag ok">Foto Wajah Terpilih</span>
+              <div className="absolute bottom-3 inset-x-3 bg-[var(--surface)] rounded-xl p-2.5 border border-[var(--edge)] shadow-[2px_2px_0_var(--shadow)] flex items-center justify-between gap-2">
+                <span className="hlb-tag ok">Swafoto Siap</span>
                 <button
                   type="button"
                   onClick={onClearCapture}
@@ -253,7 +345,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
           {/* View: Camera Inactive or Error */}
           {!capturedImage && !cameraActive && (
             <div className="text-center p-5 space-y-3 max-w-xs z-10 text-[#F4EFE3]">
-              <div className="w-11 h-11 rounded-xl bg-[var(--paper)] border-2 border-[var(--edge)] shadow-[3px_3px_0_var(--shadow)] text-[var(--on-yellow)] mx-auto flex items-center justify-center">
+              <div className="w-11 h-11 rounded-xl bg-[var(--paper)] border border-[var(--edge)] shadow-[2px_2px_0_var(--shadow)] text-[var(--on-yellow)] mx-auto flex items-center justify-center">
                 <AlertCircle className="w-5 h-5 text-[var(--red)]" />
               </div>
               <div>
@@ -261,7 +353,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
                   {isInitializing ? 'Memulai kamera...' : cameraError || 'Kamera belum aktif.'}
                 </p>
                 <p className="font-mono text-[10px] uppercase tracking-wider text-[#ADA79A] mt-1">
-                  Atau unggah file foto di bawah
+                  Izinkan akses kamera pada browser untuk melanjutkan
                 </p>
               </div>
               <button
@@ -269,31 +361,65 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
                 onClick={startCamera}
                 className="hlb-btn-primary text-xs uppercase tracking-wider px-4 py-2 cursor-pointer"
               >
-                Coba Lagi
+                Aktifkan Kamera
               </button>
             </div>
           )}
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            capture="user"
-            className="hidden"
-            onChange={handleFileUpload}
-          />
         </div>
+
+        {/* Real-Time Camera Quality & Lighting Guidance Banner */}
+        {!capturedImage && cameraActive && enableRealtimePreview && (
+          <div
+            className={`rounded-xl px-3.5 py-2.5 border border-[var(--edge)] flex items-start gap-2.5 transition-colors ${
+              livePreview?.guidance.level === 'ok'
+                ? 'bg-[var(--mint)]'
+                : livePreview?.guidance.level === 'error'
+                ? 'bg-[var(--pink)]'
+                : 'bg-[var(--paper)]'
+            }`}
+          >
+            <div className="mt-0.5 shrink-0">
+              {livePreview?.guidance.level === 'ok' ? (
+                <CheckCircle2 className="w-4 h-4 text-[var(--green)]" />
+              ) : livePreview?.guidance.level === 'error' ? (
+                <AlertTriangle className="w-4 h-4 text-[var(--red)]" />
+              ) : (
+                <Lightbulb className="w-4 h-4 text-[var(--orange)]" />
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <span className="font-sans text-xs font-bold text-[var(--ink)]">
+                  {livePreview
+                    ? livePreview.guidance.title
+                    : 'Memindai kondisi pencahayaan & posisi wajah...'}
+                </span>
+                {livePreview?.detected && livePreview.match_status !== 'NOT_ENROLLED' && (
+                  <span className="font-mono text-[10.5px] font-semibold text-[var(--ink)] tabular-nums">
+                    Kecocokan: {livePreview.similarity_percent.toFixed(1)}%
+                  </span>
+                )}
+              </div>
+              <p className="font-sans text-[11.5px] text-[var(--soft)] leading-snug mt-0.5">
+                {livePreview
+                  ? livePreview.guidance.solution
+                  : 'Posisikan wajah di tengah bingkai dengan cahaya yang cukup.'}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Shutter Controls Bar */}
-      <div className="px-4 py-3.5 bg-[var(--surface)] border-t-2 border-[var(--edge)]">
-        <div className="flex items-center justify-between gap-3">
+      {/* Shutter Controls Bar (Live Camera Only — No File Upload) */}
+      <div className="px-4 py-3 bg-[var(--surface)] border-t border-[var(--edge)]">
+        <div className="flex items-center justify-between gap-2.5">
           <button
             type="button"
             onClick={toggleFacingMode}
             disabled={disabled}
             className="hlb-btn-secondary w-11 h-11 p-0 flex items-center justify-center cursor-pointer disabled:opacity-40 shrink-0"
             title="Ganti Kamera Depan/Belakang"
+            aria-label="Ganti Kamera Depan atau Belakang"
           >
             <SwitchCamera className="w-4 h-4" />
           </button>
@@ -308,20 +434,10 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
                 ? 'opacity-40 cursor-not-allowed'
                 : ''
             }`}
-            title={capturedImage ? 'Ambil Ulang Foto' : 'Ambil Foto Wajah (Shutter)'}
+            title={capturedImage ? 'Ambil Ulang Foto' : 'Ambil Foto Wajah'}
           >
             <IconCameraView className="w-4 h-4" />
             <span>{capturedImage ? 'Ambil Ulang Swafoto' : 'Ambil Foto Wajah'}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={disabled}
-            className="hlb-btn-secondary w-11 h-11 p-0 flex items-center justify-center cursor-pointer disabled:opacity-40 shrink-0"
-            title="Upload Foto Wajah"
-          >
-            <Upload className="w-4 h-4" />
           </button>
         </div>
       </div>

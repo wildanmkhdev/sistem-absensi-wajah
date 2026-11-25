@@ -235,6 +235,7 @@ export const PresensiPage: React.FC<PresensiPageProps> = ({ student }) => {
         capturedImage={capturedImage}
         onClearCapture={() => setCapturedImage(null)}
         disabled={isSubmitting}
+        enableRealtimePreview
       />
 
       {/* GPS Geofence */}

@@ -153,13 +153,12 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
           <div>
             <div className="flex flex-wrap items-center gap-2 mb-0.5">
               <span className="hlb-tag paper">UU PDP 27/2022</span>
-              <span className="hlb-tag neutral">512-D ARCFACE</span>
             </div>
             <h1 className="font-display font-normal text-2xl text-[var(--ink)] leading-tight">
               {isStudent ? 'Data Wajah & Biometrik' : 'Pendaftaran Biometrik Mahasiswa'}
             </h1>
             <p className="font-sans text-xs text-[var(--soft)] mt-0.5">
-              Representasi vektor 512-D ArcFace MobileFaceNet • Kepatuhan UU PDP No. 27/2022.
+              Pendaftaran template biometrik wajah • Kepatuhan UU PDP No. 27/2022.
             </p>
           </div>
         </div>

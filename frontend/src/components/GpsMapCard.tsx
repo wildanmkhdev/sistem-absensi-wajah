@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   AlertTriangle,
   Building2,
@@ -34,7 +34,7 @@ interface GpsMapCardProps {
   onLateMinutesChange?: (minutes: number) => void;
 }
 
-type ScenarioType = 'real' | 'in_class' | 'drift' | 'outside' | 'city' | 'custom' | null;
+type ScenarioType = 'real' | 'in_class' | 'drift' | 'outside' | 'city' | null;
 
 export const GpsMapCard: React.FC<GpsMapCardProps> = ({
   latitude,
@@ -57,19 +57,6 @@ export const GpsMapCard: React.FC<GpsMapCardProps> = ({
     radiusMeters: DEFAULT_CLASSROOM.maxDistanceMeters,
     roomName: DEFAULT_CLASSROOM.name,
   };
-
-  const [customLat, setCustomLat] = useState<string>(
-    latitude !== null ? latitude.toFixed(6) : effectiveTarget.latitude.toFixed(6)
-  );
-  const [customLon, setCustomLon] = useState<string>(
-    longitude !== null ? longitude.toFixed(6) : effectiveTarget.longitude.toFixed(6)
-  );
-
-  // Sinkronkan input manual jika koordinat berubah dari luar
-  useEffect(() => {
-    if (latitude !== null) setCustomLat(latitude.toFixed(6));
-    if (longitude !== null) setCustomLon(longitude.toFixed(6));
-  }, [latitude, longitude]);
 
   const currentDistance =
     latitude !== null && longitude !== null
@@ -162,22 +149,6 @@ export const GpsMapCard: React.FC<GpsMapCardProps> = ({
       // Pusat Kota Medan (~18 km dari UINSU Tuntungan)
       onGpsChange(3.592200, 98.678300, 15);
     }
-  };
-
-  // 3. Terapkan input manual kustom
-  const applyCustomCoordinates = (e: React.FormEvent) => {
-    e.preventDefault();
-    const lat = parseFloat(customLat);
-    const lon = parseFloat(customLon);
-
-    if (Number.isNaN(lat) || Number.isNaN(lon)) {
-      setLocatingError('Latitude dan Longitude harus berupa angka yang valid.');
-      return;
-    }
-
-    setLocatingError(null);
-    setActiveScenario('custom');
-    onGpsChange(lat, lon, 10);
   };
 
   const gmapsDirUrl =
@@ -412,43 +383,6 @@ export const GpsMapCard: React.FC<GpsMapCardProps> = ({
                 </div>
               </button>
             </div>
-
-            {/* Custom Coordinate Manual Input */}
-            <form onSubmit={applyCustomCoordinates} className="pt-2.5 border-t border-[var(--line)]">
-              <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-[var(--soft)] block mb-1.5">
-                Atau Masukkan Koordinat Manual:
-              </span>
-              <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
-                <div className="sm:col-span-2">
-                  <input
-                    type="number"
-                    step="0.000001"
-                    placeholder="Latitude"
-                    value={customLat}
-                    onChange={(e) => setCustomLat(e.target.value)}
-                    className="hlb-input w-full text-xs font-mono px-3 py-2 tabular-nums"
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <input
-                    type="number"
-                    step="0.000001"
-                    placeholder="Longitude"
-                    value={customLon}
-                    onChange={(e) => setCustomLon(e.target.value)}
-                    className="hlb-input w-full text-xs font-mono px-3 py-2 tabular-nums"
-                  />
-                </div>
-                <div>
-                  <button
-                    type="submit"
-                    className="hlb-btn-secondary w-full h-9 font-mono text-[11px] uppercase tracking-wider flex items-center justify-center cursor-pointer"
-                  >
-                    Terapkan
-                  </button>
-                </div>
-              </div>
-            </form>
 
             {/* Waktu Kedatangan / Keterlambatan */}
             {onLateMinutesChange && (

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Clock, ShieldAlert } from 'lucide-react';
+import { CheckCircle2, Clock, ShieldAlert, XCircle } from 'lucide-react';
 import type { AttendanceRecord } from '../types';
 import type { Session } from '../auth';
 import { IconStudentCard } from './icons/FlaticonIcons';
@@ -8,134 +8,6 @@ interface PresensiStatusCardProps {
   student: Session;
   records: AttendanceRecord[];
 }
-
-const AttendancePieChart: React.FC<{
-  rate: number;
-  hadir: number;
-  terlambat: number;
-  review: number;
-  tidakSah: number;
-  total: number;
-}> = ({ rate, hadir, terlambat, review, tidakSah, total }) => {
-  const r = 30;
-  const stroke = 7;
-  const c = 2 * Math.PI * r; // ≈ 188.495
-
-  if (total === 0) {
-    return (
-      <div className="relative flex items-center justify-center shrink-0 w-20 h-20">
-        <svg className="w-20 h-20 -rotate-90 transform" viewBox="0 0 76 76">
-          <circle
-            cx="38"
-            cy="38"
-            r={r}
-            fill="transparent"
-            stroke="var(--line)"
-            strokeWidth={stroke}
-          />
-          <circle
-            cx="38"
-            cy="38"
-            r={r}
-            fill="transparent"
-            stroke="var(--green)"
-            strokeWidth={stroke}
-            strokeDasharray={`${c} 0`}
-            strokeLinecap="round"
-          />
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-          <span className="font-display font-normal text-lg text-[var(--ink)] leading-none tabular-nums">
-            100%
-          </span>
-          <span className="font-mono text-[8px] uppercase text-[var(--soft)] mt-0.5">Hadir</span>
-        </div>
-      </div>
-    );
-  }
-
-  const hadirLen = (hadir / total) * c;
-  const terlambatLen = (terlambat / total) * c;
-  const reviewLen = (review / total) * c;
-  const tidakSahLen = (tidakSah / total) * c;
-
-  const hadirOffset = 0;
-  const terlambatOffset = hadirLen;
-  const reviewOffset = hadirLen + terlambatLen;
-  const tidakSahOffset = hadirLen + terlambatLen + reviewLen;
-
-  return (
-    <div
-      className="relative flex items-center justify-center shrink-0 w-20 h-20"
-      title={`Tepat Waktu: ${hadir}, Terlambat: ${terlambat}, Review: ${review}, Tidak Sah: ${tidakSah}`}
-    >
-      <svg className="w-20 h-20 -rotate-90 transform" viewBox="0 0 76 76">
-        <circle
-          cx="38"
-          cy="38"
-          r={r}
-          fill="transparent"
-          stroke="var(--line)"
-          strokeWidth={stroke}
-        />
-        {hadir > 0 && (
-          <circle
-            cx="38"
-            cy="38"
-            r={r}
-            fill="transparent"
-            stroke="var(--green)"
-            strokeWidth={stroke}
-            strokeDasharray={`${hadirLen} ${c - hadirLen}`}
-            strokeDashoffset={-hadirOffset}
-          />
-        )}
-        {terlambat > 0 && (
-          <circle
-            cx="38"
-            cy="38"
-            r={r}
-            fill="transparent"
-            stroke="var(--orange)"
-            strokeWidth={stroke}
-            strokeDasharray={`${terlambatLen} ${c - terlambatLen}`}
-            strokeDashoffset={-terlambatOffset}
-          />
-        )}
-        {review > 0 && (
-          <circle
-            cx="38"
-            cy="38"
-            r={r}
-            fill="transparent"
-            stroke="var(--blue)"
-            strokeWidth={stroke}
-            strokeDasharray={`${reviewLen} ${c - reviewLen}`}
-            strokeDashoffset={-reviewOffset}
-          />
-        )}
-        {tidakSah > 0 && (
-          <circle
-            cx="38"
-            cy="38"
-            r={r}
-            fill="transparent"
-            stroke="var(--red)"
-            strokeWidth={stroke}
-            strokeDasharray={`${tidakSahLen} ${c - tidakSahLen}`}
-            strokeDashoffset={-tidakSahOffset}
-          />
-        )}
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-        <span className="font-display font-normal text-lg text-[var(--ink)] leading-none tabular-nums">
-          {rate}%
-        </span>
-        <span className="font-mono text-[8px] uppercase text-[var(--soft)] mt-0.5">Hadir</span>
-      </div>
-    </div>
-  );
-};
 
 export const PresensiStatusCard: React.FC<PresensiStatusCardProps> = ({ student, records }) => {
   const [now, setNow] = useState<Date>(() => new Date());
@@ -169,22 +41,68 @@ export const PresensiStatusCard: React.FC<PresensiStatusCardProps> = ({ student,
     );
   }, [records]);
 
+  const total = records.length;
   const totalValid = counts.hadir + counts.terlambat;
-  const attendanceRate = records.length > 0 ? Math.round((totalValid / records.length) * 100) : 100;
+  const attendanceRate = total > 0 ? Math.round((totalValid / total) * 100) : 0;
+
+  const pct = (count: number) => (total > 0 ? (count / total) * 100 : 0);
+
+  const segments = [
+    {
+      key: 'hadir',
+      label: 'Tepat Waktu',
+      count: counts.hadir,
+      percent: pct(counts.hadir),
+      color: 'var(--green)',
+      dotClass: 'bg-[var(--green)]',
+      icon: CheckCircle2,
+      iconColor: 'text-[var(--green)]',
+    },
+    {
+      key: 'terlambat',
+      label: 'Terlambat',
+      count: counts.terlambat,
+      percent: pct(counts.terlambat),
+      color: 'var(--orange)',
+      dotClass: 'bg-[var(--orange)]',
+      icon: Clock,
+      iconColor: 'text-[var(--orange)]',
+    },
+    {
+      key: 'review',
+      label: 'Review Dosen',
+      count: counts.review,
+      percent: pct(counts.review),
+      color: 'var(--blue)',
+      dotClass: 'bg-[var(--blue)]',
+      icon: ShieldAlert,
+      iconColor: 'text-[var(--blue)]',
+    },
+    {
+      key: 'tidakSah',
+      label: 'Ditolak',
+      count: counts.tidakSah,
+      percent: pct(counts.tidakSah),
+      color: 'var(--red)',
+      dotClass: 'bg-[var(--red)]',
+      icon: XCircle,
+      iconColor: 'text-[var(--red)]',
+    },
+  ];
 
   return (
-    <div className="hlb-panel p-5 space-y-4">
+    <div className="hlb-panel p-4 sm:p-5 space-y-4">
       {/* Top Meta Bar */}
-      <div className="flex items-center justify-between gap-2 pb-3 border-b-2 border-[var(--edge)]">
+      <div className="flex items-center justify-between gap-2 pb-3 border-b border-[var(--line)]">
         <span className="font-sans text-xs font-semibold text-[var(--soft)]">{currentDate}</span>
         <span className="hlb-tag paper tabular-nums">{currentTime}</span>
       </div>
 
-      {/* Student Profile Header & Attendance Rate Pie Chart */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center space-x-3.5 min-w-0">
-          <div className="w-12 h-12 rounded-xl bg-[var(--yellow)] border-2 border-[var(--on-yellow)] shadow-[3px_3px_0_var(--shadow)] flex items-center justify-center text-[var(--on-yellow)] shrink-0">
-            <IconStudentCard className="w-7 h-7" />
+      {/* Student Profile Header & Verified Attendance Rate */}
+      <div className="flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap">
+        <div className="flex items-center space-x-3 min-w-0">
+          <div className="w-11 h-11 rounded-xl bg-[var(--yellow)] border border-[var(--on-yellow)] shadow-[2px_2px_0_var(--shadow)] flex items-center justify-center text-[var(--on-yellow)] shrink-0">
+            <IconStudentCard className="w-6 h-6" />
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -199,48 +117,72 @@ export const PresensiStatusCard: React.FC<PresensiStatusCardProps> = ({ student,
           </div>
         </div>
 
-        {/* Attendance Rate SVG Pie/Donut Chart */}
-        <AttendancePieChart
-          rate={attendanceRate}
-          hadir={counts.hadir}
-          terlambat={counts.terlambat}
-          review={counts.review}
-          tidakSah={counts.tidakSah}
-          total={records.length}
-        />
+        {/* Clean Attendance Rate Pill */}
+        <div className="hlb-tile-key px-3.5 py-2 text-right shrink-0">
+          <div className="font-display font-normal text-2xl sm:text-3xl text-[var(--on-yellow)] leading-none tabular-nums">
+            {attendanceRate}%
+          </div>
+          <div className="font-mono text-[9.5px] uppercase tracking-wider text-[var(--on-yellow-soft)] mt-0.5 tabular-nums">
+            {total > 0 ? `${totalValid}/${total} Sah` : 'Belum Ada Data'}
+          </div>
+        </div>
       </div>
 
-      {/* Metric KPI Tiles */}
-      <div className="grid grid-cols-3 gap-3 pt-1">
-        <div className="hlb-tile-key p-3">
-          <div className="flex items-center font-mono text-[10px] font-semibold uppercase tracking-wider text-[var(--on-yellow-soft)] mb-1">
-            <CheckCircle2 className="w-3.5 h-3.5 text-[var(--on-yellow)] mr-1.5 shrink-0" />
-            <span className="truncate">Tepat Waktu</span>
-          </div>
-          <div className="font-display font-normal text-2xl sm:text-3xl text-[var(--on-yellow)] leading-none tabular-nums">
-            {counts.hadir}
-          </div>
+      {/* Modern Segmented Distribution Bar (replaces clunky donut chart) */}
+      <div className="space-y-2 pt-1">
+        <div className="flex items-center justify-between text-[11px] font-mono uppercase tracking-wider text-[var(--soft)]">
+          <span>Distribusi Kehadiran</span>
+          <span className="tabular-nums">{total} Total Catatan</span>
         </div>
 
-        <div className="hlb-tile p-3">
-          <div className="flex items-center font-mono text-[10px] font-semibold uppercase tracking-wider text-[var(--soft)] mb-1">
-            <Clock className="w-3.5 h-3.5 text-[var(--orange)] mr-1.5 shrink-0" />
-            <span className="truncate">Terlambat</span>
-          </div>
-          <div className="font-display font-normal text-2xl sm:text-3xl text-[var(--ink)] leading-none tabular-nums">
-            {counts.terlambat}
-          </div>
+        <div
+          className="w-full h-3.5 rounded-full bg-[var(--bg)] border border-[var(--edge)] overflow-hidden flex"
+          role="img"
+          aria-label={`Distribusi kehadiran: ${counts.hadir} tepat waktu, ${counts.terlambat} terlambat, ${counts.review} review dosen, ${counts.tidakSah} ditolak dari ${total} catatan`}
+        >
+          {total === 0 ? (
+            <div className="w-full h-full bg-[var(--line)]/60" />
+          ) : (
+            segments.map(
+              (seg) =>
+                seg.count > 0 && (
+                  <div
+                    key={seg.key}
+                    style={{ width: `${seg.percent}%`, backgroundColor: seg.color }}
+                    className="h-full transition-all duration-500 border-r last:border-r-0 border-[var(--surface)]/70"
+                    title={`${seg.label}: ${seg.count} (${Math.round(seg.percent)}%)`}
+                  />
+                )
+            )
+          )}
         </div>
+      </div>
 
-        <div className="hlb-tile p-3">
-          <div className="flex items-center font-mono text-[10px] font-semibold uppercase tracking-wider text-[var(--soft)] mb-1">
-            <ShieldAlert className="w-3.5 h-3.5 text-[var(--blue)] mr-1.5 shrink-0" />
-            <span className="truncate">Review Dosen</span>
-          </div>
-          <div className="font-display font-normal text-2xl sm:text-3xl text-[var(--ink)] leading-none tabular-nums">
-            {counts.review}
-          </div>
-        </div>
+      {/* 4-Column Accurate Breakdown Tiles */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        {segments.map((seg) => {
+          const Icon = seg.icon;
+          const roundedPct = Math.round(seg.percent);
+          return (
+            <div key={seg.key} className="hlb-tile p-2.5 sm:p-3 flex flex-col justify-between">
+              <div className="flex items-center justify-between gap-1 mb-1.5">
+                <span className="flex items-center font-mono text-[9.5px] font-semibold uppercase tracking-wider text-[var(--soft)] truncate">
+                  <Icon className={`w-3.5 h-3.5 ${seg.iconColor} mr-1 shrink-0`} />
+                  <span className="truncate">{seg.label}</span>
+                </span>
+                <span className={`w-2 h-2 rounded-full ${seg.dotClass} shrink-0`} />
+              </div>
+              <div className="flex items-baseline justify-between gap-1">
+                <span className="font-display font-normal text-2xl text-[var(--ink)] leading-none tabular-nums">
+                  {seg.count}
+                </span>
+                <span className="font-mono text-[10px] text-[var(--soft)] tabular-nums">
+                  {roundedPct}%
+                </span>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

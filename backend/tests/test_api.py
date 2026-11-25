@@ -263,3 +263,33 @@ def test_student_register_mismatched_nim_blocked(client, student_headers):
     assert res.status_code == 403
     assert "Mahasiswa hanya dapat mendaftarkan wajahnya sendiri" in res.json()["detail"]
 
+
+def test_preview_face_realtime_returns_bbox_score_and_guidance(
+    client, student_headers, enrolled_student
+):
+    # Genuine match preview
+    res = client.post(
+        "/api/presensi/preview-face",
+        json={"face_image": data_uri(FIXTURES / "obama_b.jpg")},
+        headers=student_headers,
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["detected"] is True
+    assert data["bbox"] is not None
+    assert data["match_status"] == "MATCH"
+    assert data["similarity_percent"] >= 55.0
+    assert "title" in data["guidance"] and "solution" in data["guidance"]
+
+    # Impostor preview
+    imp = client.post(
+        "/api/presensi/preview-face",
+        json={"face_image": data_uri(FIXTURES / "biden.jpg")},
+        headers=student_headers,
+    )
+    assert imp.status_code == 200
+    imp_data = imp.json()
+    assert imp_data["detected"] is True
+    assert imp_data["match_status"] == "MISMATCH"
+    assert imp_data["similarity_percent"] < 35.0
+
