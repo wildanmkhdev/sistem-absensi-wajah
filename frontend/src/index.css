@@ -181,6 +181,8 @@
     scroll-behavior: smooth;
     background-color: var(--bg);
     color: var(--ink);
+    overflow-x: clip;
+    max-width: 100%;
   }
 
   body {
@@ -190,6 +192,13 @@
     color: var(--ink);
     font-family: var(--body);
     line-height: 1.5;
+    overflow-x: clip;
+    max-width: 100%;
+  }
+
+  #root {
+    overflow-x: clip;
+    max-width: 100%;
   }
 
   :root[data-theme="dark"] body {
@@ -230,6 +239,20 @@
   border: 2px solid var(--edge);
   border-radius: 16px;
   box-shadow: 6px 6px 0 var(--shadow);
+  max-width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 639px) {
+  .hlb-panel {
+    box-shadow: 4px 4px 0 var(--shadow);
+  }
+  .hlb-tile,
+  .hlb-tile-key,
+  .hlb-alert {
+    box-shadow: 3px 3px 0 var(--shadow);
+    max-width: 100%;
+  }
 }
 
 /* KPI Tile / Sub-card */

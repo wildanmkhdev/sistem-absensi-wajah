@@ -110,50 +110,74 @@ export const Navbar: React.FC<NavbarProps> = ({
     setDrawerOpen(false);
   };
 
+  const activeItem = navItems.find((item) => item.id === activeTab) ?? navItems[0];
+
   return (
     <>
-      <header className="hlb-topbar">
-        <div className="max-w-6xl mx-auto px-3.5 sm:px-6">
-          <div className="flex items-center justify-between gap-3 h-16">
-            {/* Left: Mobile Sidebar Trigger + Brand Identity */}
-            <div className="flex items-center gap-2.5 shrink-0">
-              <button
-                type="button"
-                onClick={() => setDrawerOpen(true)}
-                aria-label="Buka menu navigasi"
-                aria-expanded={drawerOpen}
-                aria-controls="mobile-sidebar-drawer"
-                className="md:hidden w-10 h-10 rounded-xl bg-[var(--surface)] text-[var(--ink)] border-2 border-[var(--edge)] shadow-[2px_2px_0_var(--shadow)] flex items-center justify-center relative active:translate-x-[1px] active:translate-y-[1px] transition-transform cursor-pointer"
-              >
-                <Menu className="w-5 h-5" />
-                {isDosen && pendingOversightCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 text-[9.5px] leading-none font-mono font-semibold rounded-full bg-[var(--red)] text-white border-[1.5px] border-[var(--edge)] flex items-center justify-center">
-                    {pendingOversightCount}
-                  </span>
-                )}
-              </button>
+      {/* Mobile-only minimal sidebar trigger strip (NO sticky top nav bar on mobile) */}
+      <div className="md:hidden w-full max-w-full px-3.5 pt-3 pb-1 flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => setDrawerOpen(true)}
+          aria-label="Buka menu sidebar"
+          aria-expanded={drawerOpen}
+          aria-controls="mobile-sidebar-drawer"
+          className="inline-flex items-center gap-2 min-h-[40px] px-3 py-1.5 rounded-xl bg-[var(--surface)] text-[var(--ink)] border-2 border-[var(--edge)] shadow-[2px_2px_0_var(--shadow)] font-mono text-xs font-semibold uppercase tracking-wider active:translate-x-[1px] active:translate-y-[1px] transition-transform cursor-pointer relative shrink-0"
+        >
+          <Menu className="w-4 h-4 shrink-0" />
+          <span>Menu</span>
+          {isDosen && pendingOversightCount > 0 && (
+            <span className="ml-0.5 min-w-[18px] h-[18px] px-1 text-[9.5px] leading-none font-mono font-semibold rounded-full bg-[var(--red)] text-white border border-[var(--edge)] flex items-center justify-center">
+              {pendingOversightCount}
+            </span>
+          )}
+        </button>
 
-              <button
-                type="button"
-                onClick={() => handleSelectTab(isDosen ? 'sessions' : 'presensi')}
-                className="flex items-center gap-2.5 cursor-pointer group select-none text-left shrink-0"
-              >
-                <PresenSILogo className="w-10 h-10 shrink-0 transition-transform group-hover:-translate-x-0.5 group-hover:-translate-y-0.5" />
-                <div className="leading-none">
-                  <span className="font-display text-xl sm:text-2xl tracking-tight text-[var(--ink)] block leading-none">
-                    PresenSI
-                  </span>
-                  <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--soft)] block mt-0.5">
-                    Presensi Wajah
-                  </span>
-                </div>
-              </button>
-            </div>
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="hlb-tag paper truncate max-w-[140px]">
+            {activeItem?.label}
+          </span>
+          <button
+            type="button"
+            onClick={handleToggleTheme}
+            aria-label={theme === 'dark' ? 'Beralih ke Mode Terang' : 'Beralih ke Mode Gelap'}
+            title={theme === 'dark' ? 'Mode Terang' : 'Mode Gelap'}
+            className="hlb-theme-btn shrink-0"
+          >
+            {theme === 'dark' ? (
+              <Sun className="w-4 h-4" />
+            ) : (
+              <Moon className="w-4 h-4" />
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Desktop Top Navbar (>= md only) */}
+      <header className="hlb-topbar hidden md:block">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="flex items-center justify-between gap-3 h-16">
+            {/* Left: Brand Identity */}
+            <button
+              type="button"
+              onClick={() => handleSelectTab(isDosen ? 'sessions' : 'presensi')}
+              className="flex items-center gap-2.5 cursor-pointer group select-none text-left shrink-0"
+            >
+              <PresenSILogo className="w-10 h-10 shrink-0 transition-transform group-hover:-translate-x-0.5 group-hover:-translate-y-0.5" />
+              <div className="leading-none">
+                <span className="font-display text-2xl tracking-tight text-[var(--ink)] block leading-none">
+                  PresenSI
+                </span>
+                <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--soft)] block mt-0.5">
+                  Presensi Wajah
+                </span>
+              </div>
+            </button>
 
             {/* Center: Desktop Segmented Pill Navigation (.hlb-switch) */}
             <nav
               aria-label="Navigasi Utama"
-              className="hidden md:inline-flex hlb-switch"
+              className="inline-flex hlb-switch"
             >
               {navItems.map((item) => {
                 const Icon = item.icon;
@@ -185,13 +209,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                 title="Buka Menu Akun & Profil"
                 className={`${
                   activeTab === 'profile' ? 'hlb-chip-on' : 'hlb-chip'
-                } !py-1.5 !px-2.5 hidden sm:inline-flex`}
+                } !py-1.5 !px-2.5 inline-flex`}
               >
                 <span className="inline-block w-2 h-2 rounded-full bg-[var(--green)] border border-[var(--edge)] shrink-0" />
                 <span className="uppercase text-[10.5px] opacity-80 hidden lg:inline">{role}</span>
                 <span className="opacity-50 hidden lg:inline">·</span>
                 <span
-                  className="max-w-[92px] sm:max-w-[120px] truncate text-[11.5px] font-semibold"
+                  className="max-w-[120px] truncate text-[11.5px] font-semibold"
                   title={sessionName}
                 >
                   {sessionName}
@@ -217,7 +241,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={onLogout}
                 aria-label="Keluar / Ganti Akun"
                 title="Keluar / Ganti Akun"
-                className="hidden sm:inline-flex hlb-btn-danger px-2.5 py-1.5 !text-[11.5px] !rounded-full"
+                className="inline-flex hlb-btn-danger px-2.5 py-1.5 !text-[11.5px] !rounded-full"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span className="uppercase tracking-wide">Keluar</span>

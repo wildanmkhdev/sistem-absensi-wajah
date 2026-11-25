@@ -129,8 +129,8 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--bg)] text-[var(--ink)] flex flex-col font-sans selection:bg-[var(--yellow)] selection:text-[var(--on-yellow)]">
-      {/* Top Navbar */}
+    <div className="min-h-screen w-full max-w-full overflow-x-clip bg-[var(--bg)] text-[var(--ink)] flex flex-col font-sans selection:bg-[var(--yellow)] selection:text-[var(--on-yellow)]">
+      {/* Navigation (Desktop Topbar + Mobile Sidebar Drawer) */}
       <Navbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -141,7 +141,7 @@ export const App: React.FC = () => {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-6xl w-full mx-auto px-3.5 sm:px-6 py-4 sm:py-7">
+      <main className="flex-1 max-w-6xl w-full min-w-0 mx-auto px-3.5 sm:px-6 pt-2 pb-5 md:py-7 overflow-x-clip">
         <MobileFrame
           activeTab={activeTab}
           setActiveTab={setActiveTab}

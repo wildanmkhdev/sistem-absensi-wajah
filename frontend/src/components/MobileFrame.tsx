@@ -15,8 +15,8 @@ interface MobileFrameProps {
  */
 export const MobileFrame: React.FC<MobileFrameProps> = ({ children }) => {
   return (
-    <div className="w-full flex flex-col min-h-screen text-[var(--ink)]">
-      <div className="flex-1 w-full pb-8">{children}</div>
+    <div className="w-full max-w-full min-w-0 flex flex-col min-h-screen text-[var(--ink)] overflow-x-clip">
+      <div className="flex-1 w-full min-w-0 pb-8">{children}</div>
     </div>
   );
 };
