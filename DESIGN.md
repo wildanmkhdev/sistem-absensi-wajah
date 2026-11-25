@@ -1,7 +1,9 @@
 # PresenSI Design System Specification (`DESIGN.md`)
 
 > **Reference Benchmark:** `https://huggingface.co/spaces/joelniklaus/harness-leaderboard`
-> **Aesthetic Direction:** Warm Editorial Neo-Brutalist Paper & Ink
+> **Aesthetic Direction:** Warm Editorial Neo-Brutalist Paper & Ink — **Soft UINSU Sage-Mint Edition**
+> **Brand Accent:** Soft UINSU Sage-Mint (`#86CFA2` light / `#6BB88D` dark), Soft Sage Paper (`#E4F2E7` light / `#23362B` dark), Deep UINSU Emerald (`#1E7F54`), Deep Forest-Charcoal Ink (`#1C2620`)
+> **Mobile Navigation:** Slide-Over Sidebar Drawer (`< md`) triggered from topbar hamburger button (no fixed bottom navigation bar).
 > **Scope:** Complete visual overhaul of `frontend/` while preserving 100% of existing business logic, API contracts, face-recognition/GPS pipelines, and state flows.
 
 ---
